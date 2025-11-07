@@ -1,0 +1,1701 @@
+openapi: 3.0.3
+info:
+  title: Travel APAP Flight Service REST API
+  version: 0.1.0
+  description: REST API untuk modul flight APAP
+servers:
+  - url: /api/v0.1
+paths:
+  /airplanes/all:
+    get:
+      tags:
+        - Airplanes
+      summary: Read all airplanes
+      description: >-
+        Ambil daftar pesawat dengan filter opsional dan status aktif/nonaktif. Filter
+        `isActive` mengacu pada flag soft delete (`isDeleted`).
+      parameters:
+        - name: isActive
+          in: query
+          description: "Filter status aktif pesawat (active = isDeleted false, inactive = isDeleted true)."
+          required: false
+          schema:
+            type: string
+            enum: [active, inactive, all]
+            default: active
+        - name: airlineId
+          in: query
+          description: Filter berdasarkan ID maskapai.
+          required: false
+          schema:
+            type: string
+        - name: model
+          in: query
+          description: Filter berdasarkan model pesawat (case-insensitive).
+          required: false
+          schema:
+            type: string
+        - name: manufactureYear
+          in: query
+          description: Filter berdasarkan tahun pembuatan.
+          required: false
+          schema:
+            type: integer
+            format: int32
+        - name: search
+          in: query
+          description: Pencarian bebas pada registration number, model, atau nama maskapai (case-insensitive).
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Berhasil mengambil daftar pesawat.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BaseResponseAirplaneList'
+              examples:
+                success:
+                  summary: Hasil daftar pesawat
+                  value:
+                    status: 200
+                    message: Success
+                    timestamp: 2025-02-01T10:00:00.000+07:00
+                    data:
+                      - id: GA-ABC
+                        model: Boeing 737-800
+                        seatCapacity: 180
+                        manufactureYear: 2018
+                        isDeleted: false
+                        createdAt: 2025-01-20T08:00:00.000+07:00
+                        updatedAt: 2025-01-25T09:30:00.000+07:00
+                      - id: SQ-XYZ
+                        model: Airbus A350-900
+                        seatCapacity: 320
+                        manufactureYear: 2021
+                        isDeleted: false
+                        createdAt: 2025-01-21T08:00:00.000+07:00
+                        updatedAt: 2025-01-26T09:30:00.000+07:00
+        '400':
+          description: Parameter pencarian tidak valid.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BaseResponseError'
+        '500':
+          description: Kesalahan server internal.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BaseResponseError'
+  /airplanes/create:
+    post:
+      tags:
+        - Airplanes
+      summary: Register airplane
+      description: Tambahkan pesawat baru ke dalam sistem untuk maskapai aktif dan bangkitkan nomor registrasi otomatis.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AirplaneCreateRequestDTO'
+            examples:
+              request:
+                summary: Contoh payload registrasi pesawat
+                value:
+                  airlineId: GA
+                  model: Boeing 737-800
+                  seatCapacity: 186
+                  manufactureYear: 2019
+      responses:
+        '200':
+          description: Pesawat berhasil didaftarkan.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BaseResponseAirplane'
+              examples:
+                success:
+                  summary: Contoh hasil registrasi
+                  value:
+                    status: 200
+                    message: Success
+                    timestamp: 2025-02-01T10:05:00.000+07:00
+                    data:
+                      id: GA-QWE
+                      model: Boeing 737-800
+                      seatCapacity: 186
+                      manufactureYear: 2019
+                      isDeleted: false
+                      createdAt: 2025-02-01T10:05:00.000+07:00
+                      updatedAt: 2025-02-01T10:05:00.000+07:00
+        '400':
+          description: Validasi input gagal.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BaseResponseError'
+        '404':
+          description: Maskapai tidak ditemukan atau tidak aktif.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BaseResponseError'
+        '409':
+          description: Nomor registrasi pesawat bentrok.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BaseResponseError'
+        '500':
+          description: Kesalahan server internal.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BaseResponseError'
+  /airplanes/{id}/delete:
+    post:
+      tags:
+        - Airplanes
+      summary: Nonaktifkan pesawat
+      description: Tandai pesawat sebagai nonaktif (soft delete) jika tidak terikat flight aktif.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Registration number pesawat.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Pesawat berhasil dinonaktifkan.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BaseResponseAirplane'
+              examples:
+                success:
+                  summary: Pesawat dinonaktifkan
+                  value:
+                    status: 200
+                    message: Success
+                    timestamp: 2025-02-01T10:10:00.000+07:00
+                    data:
+                      id: GA-ABC
+                      model: Boeing 737-800
+                      seatCapacity: 180
+                      manufactureYear: 2018
+                      isDeleted: true
+                      createdAt: 2025-01-20T08:00:00.000+07:00
+                      updatedAt: 2025-02-01T10:10:00.000+07:00
+        '400':
+          description: Pesawat sudah nonaktif atau permintaan tidak valid.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BaseResponseError'
+        '404':
+          description: Pesawat tidak ditemukan.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BaseResponseError'
+        '409':
+          description: Pesawat masih digunakan di flight aktif.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BaseResponseError'
+        '500':
+          description: Kesalahan server internal.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BaseResponseError'
+  /flights/all:
+    get:
+      tags:
+        - Flights
+      summary: Daftar seluruh flight
+      description: Ambil daftar flight dengan dukungan filter origin/destination/airline/status serta pencarian bebas.
+      parameters:
+        - name: origin
+          in: query
+          required: false
+          description: Kode bandara asal (IATA).
+          schema:
+            type: string
+        - name: destination
+          in: query
+          required: false
+          description: Kode bandara tujuan (IATA).
+          schema:
+            type: string
+        - name: airlineId
+          in: query
+          required: false
+          description: Filter berdasarkan ID maskapai.
+          schema:
+            type: string
+        - name: status
+          in: query
+          required: false
+          description: Status flight (1-5) atau 'all'.
+          schema:
+            type: string
+        - name: showInactive
+          in: query
+          required: false
+          description: Set true untuk menampilkan flight berstatus soft delete.
+          schema:
+            type: boolean
+            default: false
+        - name: search
+          in: query
+          required: false
+          description: Pencarian bebas pada flight number atau nama airline.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Daftar flight berhasil diambil.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BaseResponseFlightList'
+              examples:
+                success:
+                  summary: Hasil pencarian flight
+                  value:
+                    status: 200
+                    message: Success
+                    timestamp: 2025-02-15T09:00:00.000+07:00
+                    data:
+                      - id: GA-ABC-001
+                        airlineId: GA
+                        airlineName: Garuda Indonesia
+                        airplaneModel: Boeing 737-800
+                        airplaneSeatCapacity: 180
+                        originAirportCode: CGK
+                        destinationAirportCode: DPS
+                        departureTime: 2025-03-01T09:00:00.000+07:00
+                        arrivalTime: 2025-03-01T11:30:00.000+07:00
+                        terminal: 3
+                        gate: A12
+                        baggageAllowance: 20
+                        facilities: WiFi, Meals
+                        status: 1
+                        isDeleted: false
+                        durationMinutes: 150
+                        lowestPrice: 1250000
+                        classes:
+                          - id: 1
+                            classType: Economy
+                            seatCapacity: 150
+                            availableSeats: 120
+                            price: 1250000
+                          - id: 2
+                            classType: Business
+                            seatCapacity: 20
+                            availableSeats: 15
+                            price: 3250000
+        '400':
+          description: Parameter filter tidak valid.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BaseResponseError'
+        '500':
+          description: Kesalahan server internal.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BaseResponseError'
+  /flights/{id}:
+    get:
+      tags:
+        - Flights
+      summary: Detail flight
+      description: Ambil detail lengkap flight beserta airline, airplane, dan konfigurasi kelasnya.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Flight number (contoh GA-ABC-001).
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Detail flight ditemukan.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BaseResponseFlightDetail'
+        '404':
+          description: Flight tidak ditemukan atau sudah dinonaktifkan.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BaseResponseError'
+        '500':
+          description: Kesalahan server internal.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BaseResponseError'
+  /flights/create:
+    post:
+      tags:
+        - Flights
+      summary: Create flight
+      description: Buat flight baru beserta konfigurasi kelas dan kursinya.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FlightCreateRequestDTO'
+            examples:
+              request:
+                summary: Contoh payload flight baru
+                value:
+                  airlineId: GA
+                  airplaneId: GA-ABC
+                  originAirportCode: CGK
+                  destinationAirportCode: DPS
+                  departureTime: 2025-03-01T09:00:00.000+07:00
+                  arrivalTime: 2025-03-01T11:30:00.000+07:00
+                  terminal: 3
+                  gate: A12
+                  baggageAllowance: 20
+                  facilities: WiFi, Meals
+                  classes:
+                    - classType: Economy
+                      seatCapacity: 150
+                      price: 1250000
+                    - classType: Business
+                      seatCapacity: 20
+                      price: 3250000
+      responses:
+        '200':
+          description: Flight berhasil dibuat.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BaseResponseFlightDetail'
+              examples:
+                success:
+                  summary: Contoh response sukses create flight
+                  value:
+                    status: 200
+                    message: Success
+                    timestamp: 2025-02-15T09:05:00.000+07:00
+                    data:
+                      id: GA-ABC-002
+                      originAirportCode: CGK
+                      destinationAirportCode: DPS
+                      departureTime: 2025-03-01T09:00:00.000+07:00
+                      arrivalTime: 2025-03-01T11:30:00.000+07:00
+                      terminal: 3
+                      gate: A12
+                      baggageAllowance: 20
+                      facilities: WiFi, Meals
+                      status: 1
+                      createdAt: 2025-02-15T09:05:00.000+07:00
+                      updatedAt: 2025-02-15T09:05:00.000+07:00
+                      isDeleted: false
+                      airline:
+                        id: GA
+                        name: Garuda Indonesia
+                        country: Indonesia
+                      airplane:
+                        id: GA-ABC
+                        model: Boeing 737-800
+                        seatCapacity: 180
+                        manufactureYear: 2018
+                        isDeleted: false
+                      classes:
+                        - id: 0
+                          classType: Economy
+                          seatCapacity: 150
+                          availableSeats: 150
+                          price: 1250000
+                        - id: 0
+                          classType: Business
+                          seatCapacity: 20
+                          availableSeats: 20
+                          price: 3250000
+        '400':
+          description: Validasi input gagal.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BaseResponseError'
+        '404':
+          description: Airline atau Airplane tidak ditemukan.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BaseResponseError'
+        '409':
+          description: Konflik ID atau jadwal dengan flight lain.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BaseResponseError'
+        '500':
+          description: Kesalahan server internal.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BaseResponseError'
+  /flights/{id}/update:
+    put:
+      tags:
+        - Flights
+      summary: Update flight
+      description: Perbarui waktu keberangkatan/kedatangan, informasi gate/terminal, bagasi, fasilitas, serta konfigurasi kelas untuk flight aktif.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Flight number yang akan diperbarui.
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FlightUpdateRequestDTO'
+            examples:
+              request:
+                summary: Contoh payload update flight
+                value:
+                  departureTime: 2025-03-01T10:00:00.000+07:00
+                  arrivalTime: 2025-03-01T12:45:00.000+07:00
+                  terminal: 3
+                  gate: B07
+                  baggageAllowance: 25
+                  facilities: WiFi, Meals, Inflight entertainment
+                  classes:
+                    - classType: Economy
+                      seatCapacity: 150
+                      price: 1350000
+                    - classType: Business
+                      seatCapacity: 20
+                      price: 3450000
+      responses:
+        '200':
+          description: Flight berhasil diperbarui.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BaseResponseFlightDetail'
+        '400':
+          description: Validasi input gagal.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BaseResponseError'
+        '404':
+          description: Flight tidak ditemukan atau sudah inactive.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BaseResponseError'
+        '409':
+          description: Konflik jadwal atau kapasitas kursi (kursi sudah terpakai).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BaseResponseError'
+        '500':
+          description: Kesalahan server internal.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BaseResponseError'
+  /flights/{id}/delete:
+    post:
+      tags:
+        - Flights
+      summary: Cancel flight
+      description: Batalkan flight (soft delete) bila belum berstatus In Flight atau Finished.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Flight number yang akan dibatalkan.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Flight berhasil dibatalkan.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BaseResponseFlightDetail'
+        '400':
+          description: Status flight tidak mengizinkan pembatalan.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BaseResponseError'
+        '404':
+          description: Flight tidak ditemukan.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BaseResponseError'
+        '409':
+          description: Flight memiliki booking aktif (Paid/Rescheduled).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BaseResponseError'
+        '500':
+          description: Kesalahan server internal.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BaseResponseError'
+  /bookings/create:
+    post:
+      tags:
+        - Bookings
+      summary: Create booking
+      description: >-
+        Membuat booking penerbangan baru. Mendukung one-way (1 booking) dan round-trip
+        (2 booking) dengan data kontak serta penumpang yang sama. Kursi yang dipilih
+        harus tersedia dan sesuai kelas pada flight yang diminta.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BookingCreateRequestDTO'
+            examples:
+              oneWay:
+                summary: Contoh request one-way
+                value:
+                  flightId: GA-ABC-001
+                  classFlightId: 12
+                  contactEmail: passenger@example.com
+                  contactPhone: "+62-812-1234-5678"
+                  passengerCount: 2
+                  passengers:
+                    - passengerId: "11111111-2222-3333-4444-555555555555"
+                      seatCode: GA-ABC-001-EC001
+                    - passengerId: "66666666-7777-8888-9999-000000000000"
+                      seatCode: GA-ABC-001-EC002
+              roundTrip:
+                summary: Contoh request round-trip
+                value:
+                  flightId: GA-ABC-001
+                  returnFlightId: GA-ABC-002
+                  classFlightId: 12
+                  contactEmail: passenger@example.com
+                  contactPhone: "+62-812-1234-5678"
+                  passengerCount: 1
+                  passengers:
+                    - passengerId: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+                      seatCode: GA-ABC-001-BU001
+      responses:
+        '200':
+          description: Booking berhasil dibuat.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BaseResponseBookingList'
+              examples:
+                success:
+                  summary: Contoh respons booking round-trip
+                  value:
+                    status: 200
+                    message: Success
+                    timestamp: 2025-02-10T09:30:00.000+07:00
+                    data:
+                      - id: GA-ABC-001-CGK-DPS-010
+                        flightNumber: GA-ABC-001
+                        originAirportCode: CGK
+                        destinationAirportCode: DPS
+                        classType: Economy
+                        route: CGK -> DPS
+                        contactEmail: passenger@example.com
+                        contactPhone: "+62-812-1234-5678"
+                        passengerCount: 1
+                        status: 1
+                        totalPrice: 1800000
+                        createdAt: 2025-02-10T09:30:00.000+07:00
+                        updatedAt: 2025-02-10T09:30:00.000+07:00
+                        isDeleted: false
+                      - id: GA-ABC-002-DPS-CGK-011
+                        flightNumber: GA-ABC-002
+                        originAirportCode: DPS
+                        destinationAirportCode: CGK
+                        classType: Economy
+                        route: DPS -> CGK
+                        contactEmail: passenger@example.com
+                        contactPhone: "+62-812-1234-5678"
+                        passengerCount: 1
+                        status: 1
+                        totalPrice: 1800000
+                        createdAt: 2025-02-10T09:30:00.000+07:00
+                        updatedAt: 2025-02-10T09:30:00.000+07:00
+                        isDeleted: false
+        '400':
+          description: Validasi input gagal.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BaseResponseError'
+        '404':
+          description: Flight, class flight, passenger, atau kursi tidak ditemukan / tidak aktif.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BaseResponseError'
+        '409':
+          description: Konflik kapasitas atau kursi sudah dibooking.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BaseResponseError'
+        '500':
+          description: Kesalahan server internal.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BaseResponseError'
+  /bookings/{bookingId}:
+    get:
+      tags:
+        - Bookings
+      summary: Detail booking
+      description: Ambil detail lengkap booking beserta relasinya (flight, class, penumpang, kursi).
+      parameters:
+        - name: bookingId
+          in: path
+          required: true
+          description: Kode unik booking.
+          schema:
+            type: string
+        - name: includeDeleted
+          in: query
+          required: false
+          description: Jika true, izinkan melihat booking yang sudah soft-deleted.
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: Detail booking berhasil diambil.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BaseResponseBookingDetail'
+        '404':
+          description: Booking tidak ditemukan.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BaseResponseError'
+        '409':
+          description: Data booking tidak konsisten.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BaseResponseError'
+        '500':
+          description: Kesalahan server internal.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BaseResponseError'
+  /bookings/{bookingId}/update:
+    put:
+      tags:
+        - Bookings
+      summary: Update booking
+      description: Perbarui informasi booking (kontak, penumpang, kursi) sesuai aturan yang berlaku.
+      parameters:
+        - name: bookingId
+          in: path
+          required: true
+          description: Kode unik booking.
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BookingUpdateRequestDTO'
+      responses:
+        '200':
+          description: Booking berhasil diperbarui.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BaseResponseBookingDetail'
+        '400':
+          description: Validasi gagal.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BaseResponseError'
+        '404':
+          description: Booking tidak ditemukan.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BaseResponseError'
+        '409':
+          description: Konflik kursi/ketersediaan.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BaseResponseError'
+        '500':
+          description: Kesalahan server internal.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BaseResponseError'
+  /bookings/{bookingId}/delete:
+    post:
+      tags:
+        - Bookings
+      summary: Cancel booking
+      description: Batalkan booking (soft delete) dan lepaskan kursi yang sudah ter-booking.
+      parameters:
+        - name: bookingId
+          in: path
+          required: true
+          description: Kode unik booking.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Booking berhasil dibatalkan.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BaseResponseBookingDetail'
+        '400':
+          description: Validasi gagal.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BaseResponseError'
+        '404':
+          description: Booking tidak ditemukan.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BaseResponseError'
+        '409':
+          description: Konflik saat melepaskan kursi atau kapasitas.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BaseResponseError'
+        '500':
+          description: Kesalahan server internal.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BaseResponseError'
+  /bookings/all:
+    get:
+      tags:
+        - Bookings
+      summary: Daftar seluruh booking
+      description: Ambil daftar booking dengan filter status, flight, class, dan pencarian bebas.
+      parameters:
+        - name: status
+          in: query
+          required: false
+          description: Status booking (`unpaid|paid|cancelled|rescheduled|all`).
+          schema:
+            type: string
+            enum: [unpaid, paid, cancelled, rescheduled, all]
+            default: all
+        - name: showInactive
+          in: query
+          required: false
+          description: Tampilkan booking yang sudah soft delete (`isDeleted=true`).
+          schema:
+            type: boolean
+            default: false
+        - name: search
+          in: query
+          required: false
+          description: Pencarian bebas (ID booking, flight number, email, atau nomor telepon).
+          schema:
+            type: string
+        - name: flightNumber
+          in: query
+          required: false
+          description: Filter berdasarkan flight number.
+          schema:
+            type: string
+        - name: classType
+          in: query
+          required: false
+          description: Filter jenis kelas (Economy, Business, First).
+          schema:
+            type: string
+            enum: [Economy, Business, First]
+      responses:
+        '200':
+          description: Daftar booking berhasil diambil.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BaseResponseBookingList'
+        '400':
+          description: Parameter filter tidak valid.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BaseResponseError'
+        '500':
+          description: Kesalahan server internal.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BaseResponseError'
+components:
+  schemas:
+    BaseResponseAirplaneList:
+      type: object
+      properties:
+        status:
+          type: integer
+          example: 200
+        message:
+          type: string
+          example: Success
+        timestamp:
+          type: string
+          format: date-time
+          example: 2025-01-01T12:00:00.000+07:00
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/AirplaneResponseDTO'
+      required:
+        - status
+        - message
+        - timestamp
+        - data
+    BaseResponseAirplane:
+      type: object
+      properties:
+        status:
+          type: integer
+          example: 200
+        message:
+          type: string
+          example: Success
+        timestamp:
+          type: string
+          format: date-time
+          example: 2025-01-01T12:00:00.000+07:00
+        data:
+          $ref: '#/components/schemas/AirplaneResponseDTO'
+      required:
+        - status
+        - message
+        - timestamp
+        - data
+    BaseResponseFlightList:
+      type: object
+      properties:
+        status:
+          type: integer
+          example: 200
+        message:
+          type: string
+          example: Success
+        timestamp:
+          type: string
+          format: date-time
+          example: 2025-01-01T12:00:00.000+07:00
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/FlightSearchItemResponseDTO'
+      required:
+        - status
+        - message
+        - timestamp
+        - data
+    BaseResponseFlightDetail:
+      type: object
+      properties:
+        status:
+          type: integer
+          example: 200
+        message:
+          type: string
+          example: Success
+        timestamp:
+          type: string
+          format: date-time
+          example: 2025-01-01T12:00:00.000+07:00
+        data:
+          $ref: '#/components/schemas/FlightDetailResponseDTO'
+      required:
+        - status
+        - message
+        - timestamp
+        - data
+    FlightSearchItemResponseDTO:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Flight number.
+          example: GA-ABC-001
+        airlineId:
+          type: string
+          example: GA
+        airlineName:
+          type: string
+          example: Garuda Indonesia
+        airplaneModel:
+          type: string
+          example: Boeing 737-800
+        airplaneSeatCapacity:
+          type: integer
+          format: int32
+          example: 180
+        originAirportCode:
+          type: string
+          example: CGK
+        destinationAirportCode:
+          type: string
+          example: DPS
+        departureTime:
+          type: string
+          format: date-time
+          example: 2025-03-01T09:00:00.000+07:00
+        arrivalTime:
+          type: string
+          format: date-time
+          example: 2025-03-01T11:30:00.000+07:00
+        terminal:
+          type: string
+          example: 3
+        gate:
+          type: string
+          example: A12
+        baggageAllowance:
+          type: integer
+          format: int32
+          example: 20
+        facilities:
+          type: string
+          example: WiFi, Meals
+        status:
+          type: integer
+          example: 1
+        isDeleted:
+          type: boolean
+          example: false
+        durationMinutes:
+          type: integer
+          format: int64
+          example: 150
+        lowestPrice:
+          type: number
+          format: decimal
+          example: 1250000
+        classes:
+          type: array
+          items:
+            $ref: '#/components/schemas/ClassFlightResponseDTO'
+      required:
+        - id
+        - originAirportCode
+        - destinationAirportCode
+        - departureTime
+        - arrivalTime
+        - status
+        - isDeleted
+    FlightDetailResponseDTO:
+      type: object
+      properties:
+        id:
+          type: string
+          example: GA-ABC-001
+        originAirportCode:
+          type: string
+          example: CGK
+        destinationAirportCode:
+          type: string
+          example: DPS
+        departureTime:
+          type: string
+          format: date-time
+          example: 2025-03-01T09:00:00.000+07:00
+        arrivalTime:
+          type: string
+          format: date-time
+          example: 2025-03-01T11:30:00.000+07:00
+        terminal:
+          type: string
+          example: 3
+        gate:
+          type: string
+          example: A12
+        baggageAllowance:
+          type: integer
+          format: int32
+          example: 20
+        facilities:
+          type: string
+          example: WiFi, Meals
+        status:
+          type: integer
+          example: 1
+        createdAt:
+          type: string
+          format: date-time
+          example: 2025-02-15T09:05:00.000+07:00
+        updatedAt:
+          type: string
+          format: date-time
+          example: 2025-02-20T09:05:00.000+07:00
+        isDeleted:
+          type: boolean
+          example: false
+        airline:
+          $ref: '#/components/schemas/AirlineResponseDTO'
+        airplane:
+          $ref: '#/components/schemas/AirplaneResponseDTO'
+        classes:
+          type: array
+          items:
+            $ref: '#/components/schemas/ClassFlightResponseDTO'
+      required:
+        - id
+        - originAirportCode
+        - destinationAirportCode
+        - departureTime
+        - arrivalTime
+        - status
+        - createdAt
+        - updatedAt
+        - isDeleted
+    FlightCreateRequestDTO:
+      type: object
+      properties:
+        airlineId:
+          type: string
+          example: GA
+        airplaneId:
+          type: string
+          example: GA-ABC
+        originAirportCode:
+          type: string
+          example: CGK
+        destinationAirportCode:
+          type: string
+          example: DPS
+        departureTime:
+          type: string
+          format: date-time
+          example: 2025-03-01T09:00:00.000+07:00
+        arrivalTime:
+          type: string
+          format: date-time
+          example: 2025-03-01T11:30:00.000+07:00
+        terminal:
+          type: string
+          example: 3
+        gate:
+          type: string
+          example: A12
+        baggageAllowance:
+          type: integer
+          format: int32
+          example: 20
+        facilities:
+          type: string
+          example: WiFi, Meals
+        classes:
+          type: array
+          items:
+            $ref: '#/components/schemas/FlightClassItemRequestDTO'
+      required:
+        - airlineId
+        - airplaneId
+        - originAirportCode
+        - destinationAirportCode
+        - departureTime
+        - arrivalTime
+        - classes
+    FlightClassItemRequestDTO:
+      type: object
+      properties:
+        classType:
+          type: string
+          example: Economy
+        seatCapacity:
+          type: integer
+          format: int32
+          example: 150
+        price:
+          type: number
+          format: decimal
+          example: 1250000
+      required:
+        - classType
+        - seatCapacity
+        - price
+    BookingCreateRequestDTO:
+      type: object
+      properties:
+        flightId:
+          type: string
+          description: Flight number yang akan dibooking.
+          example: GA-ABC-001
+        returnFlightId:
+          type: string
+          description: Flight number untuk perjalanan kembali (opsional).
+          nullable: true
+          example: GA-ABC-002
+        classFlightId:
+          type: integer
+          format: int32
+          description: ID kelas (ClassFlight) yang dipilih untuk flight utama.
+          example: 12
+        contactEmail:
+          type: string
+          format: email
+          example: passenger@example.com
+        contactPhone:
+          type: string
+          example: "+62-812-1234-5678"
+        passengerCount:
+          type: integer
+          format: int32
+          minimum: 1
+          maximum: 10
+          example: 2
+        passengers:
+          type: array
+          minItems: 1
+          description: Daftar penumpang beserta kursi yang dipilih.
+          items:
+            $ref: '#/components/schemas/BookingPassengerSelection'
+      required:
+        - flightId
+        - classFlightId
+        - contactEmail
+        - contactPhone
+        - passengerCount
+        - passengers
+    BookingPassengerSelection:
+      type: object
+      properties:
+        passengerId:
+          type: string
+          format: uuid
+          example: "11111111-2222-3333-4444-555555555555"
+        seatCode:
+          type: string
+          description: Seat code yang akan ditempati penumpang.
+          example: GA-ABC-001-EC001
+      required:
+        - passengerId
+        - seatCode
+    BookingUpdateRequestDTO:
+      type: object
+      properties:
+        contactEmail:
+          type: string
+          format: email
+          example: passenger@example.com
+        contactPhone:
+          type: string
+          example: "+62-812-1234-5678"
+        passengers:
+          type: array
+          items:
+            $ref: '#/components/schemas/BookingUpdatePassengerItem'
+      additionalProperties: false
+    BookingUpdatePassengerItem:
+      type: object
+      properties:
+        passengerId:
+          type: string
+          format: uuid
+          example: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+        action:
+          type: string
+          enum: [ADD, UPDATE, REMOVE]
+          example: UPDATE
+        fullName:
+          type: string
+          example: Jane Doe
+        birthDate:
+          type: string
+          format: date
+          example: 1997-04-12
+        identityNumber:
+          type: string
+          example: P123456789
+        seatCode:
+          type: string
+          example: GA-ABC-001-EC002
+      required:
+        - passengerId
+        - action
+      additionalProperties: false
+    BaseResponseBookingDetail:
+      type: object
+      properties:
+        status:
+          type: integer
+          example: 200
+        message:
+          type: string
+          example: Success
+        timestamp:
+          type: string
+          format: date-time
+          example: 2025-02-10T09:30:00.000+07:00
+        data:
+          $ref: '#/components/schemas/BookingDetailResponseDTO'
+      required:
+        - status
+        - message
+        - timestamp
+        - data
+    BookingDetailResponseDTO:
+      type: object
+      properties:
+        bookingId:
+          type: string
+          example: GA-ABC-001-CGK-DPS-010
+        flight:
+          $ref: '#/components/schemas/BookingDetailFlightInfo'
+        classFlight:
+          $ref: '#/components/schemas/BookingDetailClassFlightInfo'
+        contactInfo:
+          $ref: '#/components/schemas/BookingDetailContactInfo'
+        passengerList:
+          type: array
+          items:
+            $ref: '#/components/schemas/BookingDetailPassengerItem'
+        passengerCount:
+          type: integer
+          example: 2
+        totalPrice:
+          type: number
+          format: decimal
+          example: 3600000
+        status:
+          type: integer
+          example: 1
+        createdAt:
+          type: string
+          format: date-time
+          example: 2025-02-10T09:30:00.000+07:00
+        updatedAt:
+          type: string
+          format: date-time
+          example: 2025-02-10T09:30:00.000+07:00
+        isDeleted:
+          type: boolean
+          example: false
+        warning:
+          type: string
+          nullable: true
+          example: Related flight is cancelled
+        historyNote:
+          type: string
+          nullable: true
+          example: Flight already finished; seat information is historical
+        metadata:
+          $ref: '#/components/schemas/BookingDetailMetadata'
+      required:
+        - bookingId
+        - flight
+        - classFlight
+        - contactInfo
+        - passengerList
+        - passengerCount
+        - totalPrice
+        - status
+        - createdAt
+        - updatedAt
+        - isDeleted
+    BookingDetailFlightInfo:
+      type: object
+      properties:
+        flightId:
+          type: string
+          example: GA-ABC-001
+        route:
+          $ref: '#/components/schemas/BookingDetailRouteInfo'
+        departureTime:
+          type: string
+          format: date-time
+          example: 2025-03-01T07:15:00.000+07:00
+        arrivalTime:
+          type: string
+          format: date-time
+          example: 2025-03-01T09:45:00.000+07:00
+        terminal:
+          type: string
+          nullable: true
+          example: T3
+        gate:
+          type: string
+          nullable: true
+          example: G12
+        status:
+          type: integer
+          example: 1
+      required:
+        - flightId
+        - route
+    BookingDetailRouteInfo:
+      type: object
+      properties:
+        origin:
+          type: string
+          example: CGK
+        destination:
+          type: string
+          example: DPS
+      required:
+        - origin
+        - destination
+    BookingDetailClassFlightInfo:
+      type: object
+      properties:
+        classFlightId:
+          type: integer
+          example: 12
+        className:
+          type: string
+          example: Economy
+        price:
+          type: number
+          format: decimal
+          example: 1800000
+      required:
+        - classFlightId
+        - className
+        - price
+    BookingDetailContactInfo:
+      type: object
+      properties:
+        email:
+          type: string
+          example: passenger@example.com
+        phone:
+          type: string
+          example: "+62-812-1234-5678"
+      required:
+        - email
+        - phone
+    BookingDetailPassengerItem:
+      type: object
+      properties:
+        passengerId:
+          type: string
+          format: uuid
+          example: "11111111-2222-3333-4444-555555555555"
+        fullName:
+          type: string
+          example: Jane Doe
+        birthDate:
+          type: string
+          format: date
+          example: 1997-04-12
+        identityNumber:
+          type: string
+          example: P123456789
+        seatCode:
+          type: string
+          nullable: true
+          example: GA-ABC-001-EC001
+      required:
+        - passengerId
+        - fullName
+        - birthDate
+        - identityNumber
+        - seatCode
+    BookingDetailMetadata:
+      type: object
+      properties:
+        canCancel:
+          type: boolean
+          example: true
+        canUpdate:
+          type: boolean
+          example: true
+    BaseResponseBookingList:
+      type: object
+      properties:
+        status:
+          type: integer
+          example: 200
+        message:
+          type: string
+          example: Success
+        timestamp:
+          type: string
+          format: date-time
+          example: 2025-01-01T12:00:00.000+07:00
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/BookingResponseDTO'
+      required:
+        - status
+        - message
+        - timestamp
+        - data
+    BookingResponseDTO:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Booking ID.
+          example: GA-ABC-001-CGK-DPS-001
+        flightNumber:
+          type: string
+          example: GA-ABC-001
+        originAirportCode:
+          type: string
+          example: CGK
+        destinationAirportCode:
+          type: string
+          example: DPS
+        classType:
+          type: string
+          example: Economy
+        route:
+          type: string
+          example: CGK -> DPS
+        contactEmail:
+          type: string
+          example: passenger@example.com
+        contactPhone:
+          type: string
+          example: "+62-812-1234-5678"
+        passengerCount:
+          type: integer
+          format: int32
+          example: 2
+        status:
+          type: integer
+          example: 2
+        totalPrice:
+          type: number
+          format: decimal
+          example: 2500000
+        createdAt:
+          type: string
+          format: date-time
+          example: 2025-02-15T09:05:00.000+07:00
+        updatedAt:
+          type: string
+          format: date-time
+          example: 2025-02-16T10:10:00.000+07:00
+        isDeleted:
+          type: boolean
+          example: false
+      required:
+        - id
+        - flightNumber
+        - contactEmail
+        - contactPhone
+        - passengerCount
+        - status
+        - totalPrice
+        - createdAt
+        - updatedAt
+        - isDeleted
+    FlightUpdateRequestDTO:
+      type: object
+      properties:
+        departureTime:
+          type: string
+          format: date-time
+          example: 2025-03-01T10:00:00.000+07:00
+        arrivalTime:
+          type: string
+          format: date-time
+          example: 2025-03-01T12:45:00.000+07:00
+        terminal:
+          type: string
+          example: 3
+        gate:
+          type: string
+          example: B07
+        baggageAllowance:
+          type: integer
+          format: int32
+          example: 25
+        facilities:
+          type: string
+          example: WiFi, Meals, Inflight entertainment
+        classes:
+          type: array
+          items:
+            $ref: '#/components/schemas/FlightClassItemRequestDTO'
+      required:
+        - departureTime
+        - arrivalTime
+        - classes
+    BaseResponseError:
+      type: object
+      properties:
+        status:
+          type: integer
+          example: 400
+        message:
+          type: string
+          example: Invalid parameter
+        timestamp:
+          type: string
+          format: date-time
+          example: 2025-01-01T12:00:00.000+07:00
+      required:
+        - status
+        - message
+        - timestamp
+    AirplaneResponseDTO:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Registration number pesawat.
+          example: GA-ABC
+        airlineId:
+          type: string
+          description: Kode maskapai pemilik pesawat.
+          example: GA
+        airlineName:
+          type: string
+          description: Nama maskapai pemilik pesawat.
+          example: Garuda Indonesia
+        airlineCountry:
+          type: string
+          description: Negara asal maskapai.
+          example: Indonesia
+        model:
+          type: string
+          example: Boeing 737-800
+        seatCapacity:
+          type: integer
+          format: int32
+          example: 180
+        manufactureYear:
+          type: integer
+          format: int32
+          example: 2018
+        isDeleted:
+          type: boolean
+          description: Menandakan apakah pesawat dinonaktifkan (soft delete).
+          example: false
+        createdAt:
+          type: string
+          format: date-time
+          example: 2025-01-01T10:00:00.000+07:00
+        updatedAt:
+          type: string
+          format: date-time
+          example: 2025-01-02T15:30:00.000+07:00
+      required:
+        - id
+        - airlineId
+        - airlineName
+        - model
+        - seatCapacity
+        - manufactureYear
+        - isDeleted
+        - createdAt
+        - updatedAt
+    AirlineResponseDTO:
+      type: object
+      properties:
+        id:
+          type: string
+          example: GA
+        name:
+          type: string
+          example: Garuda Indonesia
+        country:
+          type: string
+          example: Indonesia
+      required:
+        - id
+        - name
+        - country
+    ClassFlightResponseDTO:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int32
+          example: 1
+        classType:
+          type: string
+          example: Economy
+        seatCapacity:
+          type: integer
+          format: int32
+          example: 150
+        availableSeats:
+          type: integer
+          format: int32
+          example: 120
+        price:
+          type: number
+          format: decimal
+          example: 1250000
+      required:
+        - id
+        - classType
+        - seatCapacity
+        - availableSeats
+        - price
+    AirplaneCreateRequestDTO:
+      type: object
+      properties:
+        airlineId:
+          type: string
+          description: ID maskapai pemilik pesawat.
+          example: GA
+        model:
+          type: string
+          description: Model pesawat.
+          example: Boeing 737-800
+        seatCapacity:
+          type: integer
+          format: int32
+          description: Kapasitas kursi total.
+          example: 180
+        manufactureYear:
+          type: integer
+          format: int32
+          description: Tahun pembuatan pesawat.
+          example: 2018
+      required:
+        - airlineId
+        - model
+        - seatCapacity
+        - manufactureYear
