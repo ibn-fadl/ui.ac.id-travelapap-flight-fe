@@ -1,8 +1,13 @@
 <script setup lang="ts">
-import { onMounted } from 'vue';
+import { onMounted, ref } from 'vue';
 import { useBookingStore } from '@/stores/booking.store';
+import { useConfirmDialog } from '@/composables/useConfirmDialog';
+import { useToast } from '@/composables/useToast';
 
 const bookingStore = useBookingStore();
+const { show: showConfirm } = useConfirmDialog();
+const { showToast } = useToast();
+const cancellingId = ref<string | null>(null);
 
 onMounted(() => {
   bookingStore.fetchBookings();
@@ -43,6 +48,28 @@ const getStatusClass = (status: number) => {
     default: return '';
   }
 };
+
+const handleCancelBooking = async (bookingId: string) => {
+  const confirmed = await showConfirm({
+    title: 'Cancel Booking',
+    message: `Are you sure you want to cancel booking ${bookingId}? This action cannot be undone.`,
+    confirmText: 'Cancel Booking',
+    cancelText: 'Keep Booking',
+    isDestructive: true,
+  });
+
+  if (!confirmed) return;
+
+  cancellingId.value = bookingId;
+  try {
+    await bookingStore.cancelBooking(bookingId);
+    showToast(`Booking ${bookingId} has been cancelled.`, 'success');
+  } catch (err: any) {
+    showToast(err.message || 'Failed to cancel booking.', 'error');
+  } finally {
+    cancellingId.value = null;
+  }
+};
 </script>
 
 <template>
@@ -58,6 +85,10 @@ const getStatusClass = (status: number) => {
           <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>
           <span>Refresh</span>
         </button>
+        <router-link class="action-btn stats-btn" :to="{ name: 'booking-statistics' }">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h18v2H3z"></path><path d="M8 7v14"></path><path d="M16 7v10"></path><path d="M12 11v10"></path><path d="M3 5l3-2h12l3 2H3z"></path></svg>
+          <span>View Statistics</span>
+        </router-link>
       </div>
     </header>
 
@@ -128,7 +159,7 @@ const getStatusClass = (status: number) => {
               <th>Total Price</th>
               <th>Status</th>
               <th>Created At</th>
-              <th>Actions</th>
+              <th class="sticky-col">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -150,9 +181,16 @@ const getStatusClass = (status: number) => {
                 </span>
               </td>
               <td>{{ new Date(booking.createdAt).toLocaleString() }}</td>
-              <td class="actions">
+              <td class="actions sticky-col">
                 <router-link :to="{ name: 'booking-detail', params: { id: booking.id } }" class="btn-action detail">Detail</router-link>
-                <button class="btn-action cancel" :disabled="booking.status !== 1">Cancel</button>
+                <button
+                  class="btn-action cancel"
+                  :disabled="booking.status !== 1 || cancellingId === booking.id"
+                  @click="handleCancelBooking(booking.id)"
+                >
+                  <span v-if="cancellingId === booking.id" class="inline-loader"></span>
+                  <span>{{ cancellingId === booking.id ? 'Cancelling...' : 'Cancel' }}</span>
+                </button>
               </td>
             </tr>
           </tbody>
@@ -188,38 +226,11 @@ const getStatusClass = (status: number) => {
   display: flex;
   gap: 1rem;
 }
-.action-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  padding: 0.65rem 1.2rem;
-  border-radius: 10px;
-  border: 1px solid transparent;
-  font-weight: 600;
-  letter-spacing: 0.01em;
-  color: #f7fafc;
-  background: #4a5568;
-  cursor: pointer;
-  transition: transform 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease;
+.stats-btn {
+  background: linear-gradient(135deg, #38b2ac, #63b3ed);
+  box-shadow: 0 12px 20px rgba(56, 178, 172, 0.35);
 }
-.action-btn svg {
-  pointer-events: none;
-}
-.action-btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-  box-shadow: none;
-  transform: none;
-}
-.action-btn:not(:disabled):hover {
-  transform: translateY(-1px);
-  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.25);
-}
-.refresh-btn {
-  background: linear-gradient(135deg, #5a67d8, #805ad5);
-  box-shadow: 0 12px 20px rgba(90, 103, 216, 0.3);
-}
-.refresh-btn:not(:disabled):hover {
+.stats-btn:not(:disabled):hover {
   filter: brightness(1.05);
 }
 .reset-btn {
@@ -309,6 +320,26 @@ const getStatusClass = (status: number) => {
 .bookings-table tbody tr:hover {
   background-color: #4a5568;
 }
+
+.sticky-col {
+  position: sticky;
+  right: 0;
+  z-index: 2;
+}
+
+.bookings-table thead th.sticky-col {
+  z-index: 4;
+}
+
+.bookings-table tbody td.sticky-col {
+  background-color: #2d3748;
+  transition: background-color 0.2s ease;
+}
+
+.bookings-table tbody tr:hover td.sticky-col {
+  background-color: #4a5568;
+}
+
 .status-badge {
   padding: 0.25rem 0.75rem;
   border-radius: 9999px;
@@ -322,11 +353,21 @@ const getStatusClass = (status: number) => {
 .status-rescheduled { background-color: #2b6cb0; color: #bee3f8; }
 .actions { display: flex; gap: 0.5rem; }
 .btn-action { background: none; border: none; cursor: pointer; padding: 0.5rem; border-radius: 4px; color: #a0aec0; transition: all 0.2s ease; font-size: 1rem; font-weight: 600; }
-.btn-action.detail { color: #63b3ed; }
+.btn-action.detail { color: #63b3ed; text-decoration: none; }
 .btn-action.detail:hover { color: #3182ce; }
 .btn-action.cancel { color: #e53e3e; }
 .btn-action.cancel:hover { color: #c53030; }
 .btn-action:disabled { color: #718096; cursor: not-allowed; }
+.inline-loader {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(229, 62, 62, 0.3);
+  border-top-color: #e53e3e;
+  border-radius: 50%;
+  display: inline-block;
+  margin-right: 0.35rem;
+  animation: spin 0.8s linear infinite;
+}
 .loader-container, .error-container, .empty-state {
   display: flex;
   flex-direction: column;

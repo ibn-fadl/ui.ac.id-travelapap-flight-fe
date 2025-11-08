@@ -2,6 +2,7 @@
 import { RouterView } from 'vue-router'
 import VNavbar from './components/layout/VNavbar.vue'
 import Modal from './components/common/CommonModal.vue';
+import GlobalToast from './components/common/GlobalToast.vue';
 import { useConfirmDialog } from './composables/useConfirmDialog';
 
 const { isVisible, options, onConfirm, onCancel } = useConfirmDialog();
@@ -26,6 +27,8 @@ const { isVisible, options, onConfirm, onCancel } = useConfirmDialog();
         <button class="btn" :class="[options.isDestructive ? 'btn-danger' : 'btn-primary']" @click="onConfirm">{{ options.confirmText }}</button>
       </template>
     </Modal>
+
+    <GlobalToast />
   </div>
 </template>
 

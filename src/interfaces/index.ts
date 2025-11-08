@@ -189,3 +189,13 @@ export interface FlightUpdateRequestDTO {
   facilities?: string;
   classes?: FlightClassItemRequestDTO[];
 }
+
+export interface PassengerInterface {
+  id: string;
+  fullName: string;
+  birthDate: string;
+  gender: number;
+  idPassport: string;
+  createdAt: string;
+  updatedAt: string;
+}

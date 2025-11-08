@@ -1,0 +1,34 @@
+.action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.65rem 1.2rem;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: #f7fafc;
+  background: #4a5568;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease;
+}
+.action-btn svg {
+  pointer-events: none;
+}
+.action-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none;
+}
+.action-btn:not(:disabled):hover {
+  transform: translateY(-1px);
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.25);
+}
+.refresh-btn {
+  background: linear-gradient(135deg, #5a67d8, #805ad5);
+  box-shadow: 0 12px 20px rgba(90, 103, 216, 0.3);
+}
+.refresh-btn:not(:disabled):hover {
+  filter: brightness(1.05);
+}

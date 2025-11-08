@@ -1002,6 +1002,47 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/BaseResponseError'
+  /passengers/all:
+    get:
+      tags:
+        - Passengers
+      summary: Daftar seluruh penumpang
+      description: Ambil daftar penumpang yang telah terdaftar dan siap dipakai pada proses booking.
+      responses:
+        '200':
+          description: Daftar penumpang berhasil diambil.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BaseResponsePassengerList'
+              examples:
+                success:
+                  summary: Contoh daftar penumpang
+                  value:
+                    status: 200
+                    message: Success
+                    timestamp: 2025-02-20T09:00:00.000+07:00
+                    data:
+                      - id: "11111111-2222-3333-4444-555555555555"
+                        fullName: Jane Doe
+                        birthDate: 1995-04-12
+                        gender: 1
+                        idPassport: P123456789
+                        createdAt: 2025-02-10T08:00:00.000+07:00
+                        updatedAt: 2025-02-18T10:15:00.000+07:00
+                      - id: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+                        fullName: John Smith
+                        birthDate: 1992-09-23
+                        gender: 2
+                        idPassport: P987654321
+                        createdAt: 2025-01-05T08:00:00.000+07:00
+                        updatedAt: 2025-02-01T10:15:00.000+07:00
+        '500':
+          description: Kesalahan server internal.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BaseResponseError'
 components:
   schemas:
     BaseResponseAirlineList:
@@ -1043,6 +1084,28 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/SeatResponseDTO'
+      required:
+        - status
+        - message
+        - timestamp
+        - data
+    BaseResponsePassengerList:
+      type: object
+      properties:
+        status:
+          type: integer
+          example: 200
+        message:
+          type: string
+          example: Success
+        timestamp:
+          type: string
+          format: date-time
+          example: 2025-01-01T12:00:00.000+07:00
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/PassengerResponseDTO'
       required:
         - status
         - message
@@ -1771,6 +1834,43 @@ components:
         - seatCode
         - isBooked
         - classFlightId
+    PassengerResponseDTO:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "11111111-2222-3333-4444-555555555555"
+        fullName:
+          type: string
+          example: Jane Doe
+        birthDate:
+          type: string
+          format: date
+          example: 1995-04-12
+        gender:
+          type: integer
+          format: int32
+          example: 1
+        idPassport:
+          type: string
+          example: P123456789
+        createdAt:
+          type: string
+          format: date-time
+          example: 2025-02-10T08:00:00.000+07:00
+        updatedAt:
+          type: string
+          format: date-time
+          example: 2025-02-18T10:15:00.000+07:00
+      required:
+        - id
+        - fullName
+        - birthDate
+        - gender
+        - idPassport
+        - createdAt
+        - updatedAt
     BaseResponseError:
       type: object
       properties:

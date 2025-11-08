@@ -15,7 +15,7 @@ export interface BookingFilters {
 }
 
 class BookingService {
-  async getAllBookings(filters: Partial<BookingFilters>): Promise<BookingInterface[]> {
+  async getAllBookings(filters?: Partial<BookingFilters>): Promise<BookingInterface[]> {
     const response = await http.get<CommonResponseInterface<BookingInterface[]>>('/bookings/all', {
       params: filters,
     });
