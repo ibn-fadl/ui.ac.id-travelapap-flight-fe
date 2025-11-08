@@ -2,7 +2,7 @@
 import { onMounted, computed, ref, watch } from 'vue';
 import { useAirplaneStore } from '@/stores/airplane.store';
 import type { AirplaneInterface, CreateAirplaneRequestInterface, UpdateAirplaneRequestInterface } from '@/interfaces';
-import Modal from '@/components/common/Modal.vue';
+import Modal from '@/components/common/CommonModal.vue';
 import RegisterAirplaneForm from '@/components/airplane/RegisterAirplaneForm.vue';
 
 const airplaneStore = useAirplaneStore();
@@ -162,13 +162,13 @@ const openDetailModal = (airplane: AirplaneInterface, editMode: boolean) => {
   detailFormErrors.value = { seatCapacity: '', manufactureYear: '' };
   isDetailEditMode.value = editMode;
   currentAirplaneForDetail.value = airplane;
-  
+
   detailForm.value = {
     model: airplane.model,
     seatCapacity: airplane.seatCapacity,
     manufactureYear: airplane.manufactureYear,
   };
-  
+
   isDetailModalOpen.value = true;
 };
 
@@ -193,7 +193,7 @@ const validateUpdateForm = (): boolean => {
     detailFormErrors.value.manufactureYear = `Year must be between 1900 and ${new Date().getFullYear()}.`;
     isValid = false;
   }
-  
+
   return isValid;
 };
 
@@ -227,7 +227,7 @@ const handleUpdate = async () => {
   <div class="airplanes-page">
     <!-- Header -->
     <header class="page-header">
-      <h1>Airplane Management</h1>
+      <h1>Airplanes</h1>
       <div class="header-actions">
         <button @click="refreshData" class="btn btn-secondary" :disabled="airplaneStore.loading && airplaneStore.airplanes.length > 0">
           <span v-if="airplaneStore.loading && airplaneStore.airplanes.length === 0" class="spinner"></span>
@@ -475,10 +475,6 @@ const handleUpdate = async () => {
 
 <style scoped>
 .airplanes-page {
-  min-height: 100vh;
-  background: linear-gradient(135deg, #1a202c, #2d3748);
-  padding: 2rem;
-  color: #e2e8f0;
   position: relative;
 }
 .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; }
@@ -493,11 +489,11 @@ const handleUpdate = async () => {
   position: relative;
 }
 
-.table-container { 
-  background: #2d3748; 
-  border-radius: 12px; 
-  border: 1px solid #4a5568; 
-  overflow-x: auto; 
+.table-container {
+  background: #2d3748;
+  border-radius: 12px;
+  border: 1px solid #4a5568;
+  overflow-x: auto;
   overflow-y: auto;
   max-height: 65vh;
   transition: filter 0.3s ease;
@@ -527,10 +523,10 @@ const handleUpdate = async () => {
 .airplanes-table thead th {
   position: sticky;
   top: 0;
-  background-color: #4a5568; 
-  color: #ffffff; 
-  font-size: 0.875rem; 
-  text-transform: uppercase; 
+  background-color: #4a5568;
+  color: #ffffff;
+  font-size: 0.875rem;
+  text-transform: uppercase;
   letter-spacing: 0.05em;
   z-index: 3;
 }

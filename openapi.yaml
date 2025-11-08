@@ -434,6 +434,44 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/BaseResponseError'
+  /flights/classes/{classId}/seats:
+    get:
+      tags:
+        - Flights
+      summary: List seats by class
+      description: Ambil seluruh kursi untuk ClassFlight tertentu beserta status `isBooked` (dipakai untuk seat map).
+      parameters:
+        - name: classId
+          in: path
+          required: true
+          description: ID ClassFlight yang ingin dicek.
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Daftar kursi berhasil diambil.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BaseResponseSeatList'
+        '400':
+          description: Parameter tidak valid.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BaseResponseError'
+        '404':
+          description: ClassFlight tidak ditemukan atau flight sudah tidak aktif.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BaseResponseError'
+        '500':
+          description: Kesalahan server internal.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BaseResponseError'
   /flights/create:
     post:
       tags:
@@ -545,7 +583,12 @@ paths:
       tags:
         - Flights
       summary: Update flight
-      description: Perbarui waktu keberangkatan/kedatangan, informasi gate/terminal, bagasi, fasilitas, serta konfigurasi kelas untuk flight aktif.
+      description: |-
+        Perbarui elemen tertentu dari flight aktif dengan aturan berikut:
+          - `Scheduled (1)` dan `Delayed (4)` → boleh memperbarui field apa pun yang diizinkan (partial update).
+          - Status lain (In Flight / Finished / Cancelled) → tidak dapat diperbarui.
+        Origin dan destination flight bersifat immutable dan tidak pernah bisa diubah melalui endpoint ini.
+        Klien cukup mengirim field yang ingin diubah; field yang tidak dikirim tetap memakai nilai sebelumnya.
       parameters:
         - name: id
           in: path
@@ -555,6 +598,7 @@ paths:
             type: string
       requestBody:
         required: true
+        description: Setidaknya satu field harus dikirim ketika flight berstatus Scheduled atau Delayed.
         content:
           application/json:
             schema:
@@ -977,6 +1021,28 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/AirlineResponseDTO'
+      required:
+        - status
+        - message
+        - timestamp
+        - data
+    BaseResponseSeatList:
+      type: object
+      properties:
+        status:
+          type: integer
+          example: 200
+        message:
+          type: string
+          example: Success
+        timestamp:
+          type: string
+          format: date-time
+          example: 2025-01-01T12:00:00.000+07:00
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/SeatResponseDTO'
       required:
         - status
         - message
@@ -1641,6 +1707,7 @@ components:
         - isDeleted
     FlightUpdateRequestDTO:
       type: object
+      description: Payload parsial untuk update flight; hanya kirim field yang ingin diperbarui.
       properties:
         departureTime:
           type: string
@@ -1665,12 +1732,45 @@ components:
           example: WiFi, Meals, Inflight entertainment
         classes:
           type: array
+          minItems: 1
+          description: Opsional; kirim bila ingin memperbarui konfigurasi kelas.
           items:
             $ref: '#/components/schemas/FlightClassItemRequestDTO'
+    SeatResponseDTO:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int32
+          example: 123
+        seatCode:
+          type: string
+          example: GA-ABC-001-EC001
+        isBooked:
+          type: boolean
+          example: false
+        classFlightId:
+          type: integer
+          format: int32
+          example: 10
+        passengerId:
+          type: string
+          format: uuid
+          nullable: true
+          example: 550e8400-e29b-41d4-a716-446655440000
+        createdAt:
+          type: string
+          format: date-time
+          example: 2025-02-01T09:00:00.000+07:00
+        updatedAt:
+          type: string
+          format: date-time
+          example: 2025-02-01T09:00:00.000+07:00
       required:
-        - departureTime
-        - arrivalTime
-        - classes
+        - id
+        - seatCode
+        - isBooked
+        - classFlightId
     BaseResponseError:
       type: object
       properties:

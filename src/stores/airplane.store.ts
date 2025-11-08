@@ -50,6 +50,7 @@ export const useAirplaneStore = defineStore('airplane', {
       try {
         const data = await airplaneService.getAllAirplanes();
         this.airplanes = data;
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       } catch (err) {
         this.error = 'Failed to fetch airplanes.';
       } finally {
@@ -60,10 +61,11 @@ export const useAirplaneStore = defineStore('airplane', {
       this.loading = true;
       this.error = null;
       this.newlyCreatedAirplane = null;
-      try {
+try {
         const newAirplane = await airplaneService.createAirplane(data);
         this.newlyCreatedAirplane = newAirplane;
         await this.fetchAirplanes();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } catch (err: any) {
         this.error = err.response?.data?.message || 'Failed to create airplane.';
         throw err;
@@ -81,6 +83,7 @@ export const useAirplaneStore = defineStore('airplane', {
         if (index !== -1) {
           this.airplanes[index] = updatedAirplane;
         }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } catch (err: any) {
         this.error = err.response?.data?.message || 'Failed to update airplane.';
         throw err;
@@ -94,6 +97,7 @@ export const useAirplaneStore = defineStore('airplane', {
       try {
         await airplaneService.deactivateAirplane(id);
         await this.fetchAirplanes(); // Refresh the list
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } catch (err: any) {
         this.error = err.response?.data?.message || 'Failed to deactivate airplane.';
         throw err;

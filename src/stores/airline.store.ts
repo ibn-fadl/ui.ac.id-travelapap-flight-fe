@@ -21,7 +21,7 @@ export const useAirlineStore = defineStore('airline', {
       try {
         const airlines = await airlineService.getAllAirlines();
         this.airlines = airlines;
-      } catch (err: any) {
+      } catch (err: Error) {
         this.error = err.message || 'Failed to fetch airlines';
       } finally {
         this.loading = false;

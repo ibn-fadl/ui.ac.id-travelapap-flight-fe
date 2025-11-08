@@ -1,8 +1,8 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import HomeView from '../views/HomeView.vue'
 import AirplanesView from '../views/AirplanesView.vue'
-
-const BlankView = { template: '<div></div>' };
+import FlightsView from '../views/FlightsView.vue'
+import BookingsView from '../views/BookingsView.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -20,12 +20,32 @@ const router = createRouter({
     {
       path: '/flights',
       name: 'flights',
-      component: BlankView,
+      component: FlightsView,
+    },
+    {
+      path: '/flights/:id',
+      name: 'flight-detail',
+      component: () => import('../views/FlightDetailView.vue'),
+    },
+    {
+      path: '/flights/create',
+      name: 'create-flight',
+      component: () => import('../views/CreateFlightView.vue'),
+    },
+    {
+      path: '/flights/:id/update',
+      name: 'update-flight',
+      component: () => import('../views/UpdateFlightView.vue'),
     },
     {
       path: '/bookings',
       name: 'bookings',
-      component: BlankView,
+      component: BookingsView,
+    },
+    {
+      path: '/bookings/:id',
+      name: 'booking-detail',
+      component: () => import('../views/BookingDetailView.vue'),
     },
     {
       path: '/about',
