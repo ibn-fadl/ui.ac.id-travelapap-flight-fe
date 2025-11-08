@@ -155,6 +155,57 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/BaseResponseError'
+  /airplanes/{id}/update:
+    put:
+      tags:
+        - Airplanes
+      summary: Update airplane
+      description: Perbarui model, kapasitas kursi, atau tahun pembuatan untuk pesawat aktif.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Registration number pesawat.
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AirplaneUpdateRequestDTO'
+            examples:
+              request:
+                summary: Contoh payload update pesawat
+                value:
+                  model: Boeing 737-900ER
+                  seatCapacity: 192
+                  manufactureYear: 2020
+      responses:
+        '200':
+          description: Pesawat berhasil diperbarui.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BaseResponseAirplane'
+        '400':
+          description: Validasi input gagal atau tidak ada field yang diperbarui.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BaseResponseError'
+        '404':
+          description: Pesawat tidak ditemukan atau sudah inactive.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BaseResponseError'
+        '500':
+          description: Kesalahan server internal.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BaseResponseError'
   /airplanes/{id}/delete:
     post:
       tags:
@@ -204,6 +255,44 @@ paths:
                 $ref: '#/components/schemas/BaseResponseError'
         '409':
           description: Pesawat masih digunakan di flight aktif.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BaseResponseError'
+        '500':
+          description: Kesalahan server internal.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BaseResponseError'
+  /airplanes/{id}/activate:
+    post:
+      tags:
+        - Airplanes
+      summary: Aktifkan kembali pesawat
+      description: Mengembalikan pesawat yang sebelumnya dinonaktifkan menjadi aktif (isDeleted=false).
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Registration number pesawat.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Pesawat berhasil diaktifkan kembali.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BaseResponseAirplane'
+        '400':
+          description: Permintaan tidak valid atau pesawat sudah aktif.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BaseResponseError'
+        '404':
+          description: Pesawat tidak ditemukan atau maskapai induk tidak aktif.
           content:
             application/json:
               schema:
@@ -871,6 +960,28 @@ paths:
                 $ref: '#/components/schemas/BaseResponseError'
 components:
   schemas:
+    BaseResponseAirlineList:
+      type: object
+      properties:
+        status:
+          type: integer
+          example: 200
+        message:
+          type: string
+          example: Success
+        timestamp:
+          type: string
+          format: date-time
+          example: 2025-01-01T12:00:00.000+07:00
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/AirlineResponseDTO'
+      required:
+        - status
+        - message
+        - timestamp
+        - data
     BaseResponseAirplaneList:
       type: object
       properties:
@@ -1699,3 +1810,75 @@ components:
         - model
         - seatCapacity
         - manufactureYear
+    AirplaneUpdateRequestDTO:
+      type: object
+      description: Setidaknya satu field harus diisi untuk melakukan pembaruan.
+      properties:
+        model:
+          type: string
+          description: Model pesawat terbaru.
+          example: Boeing 737-900ER
+        seatCapacity:
+          type: integer
+          format: int32
+          minimum: 1
+          description: Kapasitas kursi baru (harus lebih besar dari 0).
+          example: 192
+        manufactureYear:
+          type: integer
+          format: int32
+          minimum: 1900
+          description: Tahun pembuatan pesawat yang baru.
+          example: 2020
+  /airlines/all:
+    get:
+      tags:
+        - Airlines
+      summary: Read all airlines
+      description: Ambil daftar maskapai dengan filter opsional berdasarkan nama, negara, atau kata kunci bebas.
+      parameters:
+        - name: name
+          in: query
+          required: false
+          description: Filter berdasarkan nama maskapai (case-insensitive, contains).
+          schema:
+            type: string
+        - name: country
+          in: query
+          required: false
+          description: Filter berdasarkan negara asal maskapai (case-insensitive, contains).
+          schema:
+            type: string
+        - name: search
+          in: query
+          required: false
+          description: Pencarian bebas pada kode maskapai, nama, atau negara.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Berhasil mengambil daftar maskapai.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BaseResponseAirlineList'
+              examples:
+                success:
+                  summary: Contoh daftar maskapai
+                  value:
+                    status: 200
+                    message: Success
+                    timestamp: 2025-02-20T09:00:00.000+07:00
+                    data:
+                      - id: GA
+                        name: Garuda Indonesia
+                        country: Indonesia
+                      - id: SQ
+                        name: Singapore Airlines
+                        country: Singapore
+        '500':
+          description: Kesalahan server internal.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BaseResponseError'

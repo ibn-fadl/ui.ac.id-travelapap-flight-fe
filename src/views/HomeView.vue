@@ -1,39 +1,39 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
-import airplaneService from '../services/airplane.service';
+import airlineService from '../services/airline.service';
 import bookingService from '../services/booking.service';
 import flightService from '../services/flight.service';
 
 // --- State Management ---
 const activeFlightsToday = ref(0);
 const bookingsToday = ref(0);
-const totalAirplanes = ref(0);
+const totalAirlines = ref(0);
 
 const loading = ref({
   flights: false,
   bookings: false,
-  airplanes: false
+  airlines: false
 });
 
 const errors = ref({
   flights: null as string | null,
   bookings: null as string | null,
-  airplanes: null as string | null
+  airlines: null as string | null
 });
 
 const lastUpdated = ref('');
 
 // --- Data Fetching ---
 const fetchDashboardData = async () => {
-  loading.value = { flights: true, bookings: true, airplanes: true };
-  errors.value = { flights: null, bookings: null, airplanes: null };
+  loading.value = { flights: true, bookings: true, airlines: true };
+  errors.value = { flights: null, bookings: null, airlines: null };
 
   const today = new Date().toISOString().split('T')[0];
 
-  const [flightsResult, bookingsResult, airplanesResult] = await Promise.allSettled([
+  const [flightsResult, bookingsResult, airlinesResult] = await Promise.allSettled([
     flightService.getAllFlights(),
     bookingService.getAllBookings(),
-    airplaneService.getAllAirplanes()
+    airlineService.getAllAirlines()
   ]);
 
   // Process flights
@@ -42,7 +42,9 @@ const fetchDashboardData = async () => {
       const activeStatuses = [1, 2]; // Scheduled or In Flight
       activeFlightsToday.value = flightsResult.value.filter(flight => {
         const departureDate = new Date(flight.departureTime).toISOString().split('T')[0];
-        return activeStatuses.includes(flight.status) && departureDate === today;
+        const arrivalDate = new Date(flight.arrivalTime).toISOString().split('T')[0];
+        const isToday = departureDate === today || arrivalDate === today;
+        return activeStatuses.includes(flight.status) && isToday;
       }).length;
     } catch (e) {
       errors.value.flights = 'Failed to process flight data.';
@@ -71,14 +73,14 @@ const fetchDashboardData = async () => {
   }
   loading.value.bookings = false;
 
-  // Process airplanes
-  if (airplanesResult.status === 'fulfilled') {
-    totalAirplanes.value = airplanesResult.value.length;
+  // Process airlines
+  if (airlinesResult.status === 'fulfilled') {
+    totalAirlines.value = airlinesResult.value.length;
   } else {
-    errors.value.airplanes = 'Failed to fetch airplane data.';
-    totalAirplanes.value = 0;
+    errors.value.airlines = 'Failed to fetch airline data.';
+    totalAirlines.value = 0;
   }
-  loading.value.airplanes = false;
+  loading.value.airlines = false;
 
   lastUpdated.value = new Date().toLocaleTimeString();
 };
@@ -100,8 +102,14 @@ onMounted(fetchDashboardData);
           <p>Real-time flight operations and booking management dashboard</p>
         </div>
         <div class="header-actions">
-          <router-link to="/airplanes" class="btn btn-secondary">Manage Airplanes</router-link>
-          <button @click="refreshData" class="btn btn-primary">Refresh Data</button>
+          <router-link to="/airplanes" class="btn btn-secondary">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z"></path></svg>
+            <span>Manage Airplanes</span>
+          </router-link>
+          <button @click="refreshData" class="btn btn-primary">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>
+            <span>Refresh Data</span>
+          </button>
         </div>
       </header>
 
@@ -146,21 +154,21 @@ onMounted(fetchDashboardData);
           </div>
         </div>
 
-        <!-- Total Airplanes -->
+        <!-- Total Airlines -->
         <div class="card">
           <div class="card-body">
-            <div v-if="loading.airplanes" class="loader"></div>
+            <div v-if="loading.airlines" class="loader"></div>
             <div v-else class="card-content-wrapper">
               <div class="card-icon">
                 <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z"></path></svg>
               </div>
               <div class="card-text">
-                <p class="card-title">Total Airplanes</p>
-                <h2 class="card-value">{{ totalAirplanes }}</h2>
-                <p class="card-label">Registered aircraft</p>
+                <p class="card-title">Total Airlines</p>
+                <h2 class="card-value">{{ totalAirlines }}</h2>
+                <p class="card-label">Registered carriers</p>
               </div>
             </div>
-            <div v-if="errors.airplanes && !loading.airplanes" class="alert alert-danger">{{ errors.airplanes }}</div>
+            <div v-if="errors.airlines && !loading.airlines" class="alert alert-danger">{{ errors.airlines }}</div>
           </div>
         </div>
       </section>
@@ -241,7 +249,9 @@ onMounted(fetchDashboardData);
   font-weight: 600;
   cursor: pointer;
   text-decoration: none;
-  display: inline-block;
+  display: inline-flex; /* Use inline-flex for alignment */
+  align-items: center;
+  gap: 0.5rem;
   transition: all 0.3s ease;
 }
 

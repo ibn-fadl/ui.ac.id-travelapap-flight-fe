@@ -11,9 +11,28 @@ export interface AirplaneInterface {
   model: string;
   seatCapacity: number;
   manufactureYear: number;
-  isActive: boolean;
+  isDeleted: boolean;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface AirlineInterface {
+  id: string;
+  name: string;
+  country: string;
+}
+
+export interface CreateAirplaneRequestInterface {
+  airlineId: string;
+  model: string;
+  seatCapacity: number;
+  manufactureYear: number;
+}
+
+export interface UpdateAirplaneRequestInterface {
+  model: string;
+  seatCapacity: number;
+  manufactureYear: number;
 }
 
 export interface BookingInterface {
