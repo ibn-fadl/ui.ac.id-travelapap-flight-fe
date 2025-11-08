@@ -254,20 +254,25 @@ const handleUpdate = async () => {
 
     <!-- Filters -->
     <div class="filter-bar">
-      <input type="text" placeholder="Search..." class="search-input" :value="airplaneStore.searchQuery" @input="handleSearch" />
-      <select class="filter-select" :value="airplaneStore.statusFilter" @change="handleStatusChange">
-        <option value="all">All Statuses</option>
-        <option value="active">Active Only</option>
-        <option value="inactive">Inactive Only</option>
-      </select>
-      <select class="filter-select" :value="airplaneStore.airlineFilter" @change="handleAirlineChange">
-        <option value="all">All Airlines</option>
-        <option v-for="airline in uniqueAirlines" :key="airline" :value="airline">{{ airline }}</option>
-      </select>
-      <select class="filter-select" :value="airplaneStore.yearFilter" @change="handleYearChange">
-        <option value="all">All Years</option>
-        <option v-for="year in uniqueYears" :key="year" :value="year">{{ year }}</option>
-      </select>
+      <div class="filter-controls">
+        <div class="search-group">
+          <input type="text" placeholder="Search..." class="search-input" :value="airplaneStore.searchQuery" @input="handleSearch" />
+          <button class="btn btn-secondary reset-button" @click="clearFilters">Reset Filters</button>
+        </div>
+        <select class="filter-select" :value="airplaneStore.statusFilter" @change="handleStatusChange">
+          <option value="all">All Statuses</option>
+          <option value="active">Active Only</option>
+          <option value="inactive">Inactive Only</option>
+        </select>
+        <select class="filter-select" :value="airplaneStore.airlineFilter" @change="handleAirlineChange">
+          <option value="all">All Airlines</option>
+          <option v-for="airline in uniqueAirlines" :key="airline" :value="airline">{{ airline }}</option>
+        </select>
+        <select class="filter-select" :value="airplaneStore.yearFilter" @change="handleYearChange">
+          <option value="all">All Years</option>
+          <option v-for="year in uniqueYears" :key="year" :value="year">{{ year }}</option>
+        </select>
+      </div>
     </div>
 
     <!-- Main Content -->
@@ -481,6 +486,10 @@ const handleUpdate = async () => {
 .page-header h1 { font-size: 2.5rem; font-weight: 700; color: #ffffff; }
 .header-actions { display: flex; gap: 1rem; }
 .filter-bar { display: flex; flex-wrap: wrap; gap: 1rem; margin-bottom: 2rem; }
+.filter-controls { display: flex; flex-wrap: wrap; gap: 1rem; width: 100%; align-items: center; }
+.search-group { display: flex; gap: 0.75rem; flex: 1 1 320px; min-width: 260px; }
+.search-group .search-input { flex: 1 1 auto; min-width: 0; }
+.reset-button { white-space: nowrap; }
 .search-input, .filter-select { background-color: #2d3748; color: #e2e8f0; border: 1px solid #4a5568; border-radius: 8px; padding: 0.75rem 1rem; font-size: 1rem; }
 .search-input { flex-grow: 1; min-width: 250px; }
 .search-input::placeholder { color: #a0aec0; }

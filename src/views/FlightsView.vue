@@ -24,23 +24,23 @@ const handleDebouncedInput = (filter: Partial<FlightFilters>) => {
 <template>
   <div class="flights-page">
     <header class="page-header">
-      <h1>All Flights</h1>
+      <h1>Flights</h1>
       <div class="header-actions">
-        <button 
-          class="btn btn-secondary" 
-          @click="flightStore.fetchFlights()" 
+        <button
+          class="btn btn-secondary"
+          @click="flightStore.fetchFlights()"
           :disabled="flightStore.loading">
           <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>
           <span>Refresh</span>
         </button>
         <div class="trip-mode-toggle">
-          <button 
-            @click="flightStore.setTripMode('one-way')" 
+          <button
+            @click="flightStore.setTripMode('one-way')"
             :class="['toggle-btn', { active: flightStore.tripMode === 'one-way' }]">
             One-Way
           </button>
-          <button 
-            @click="flightStore.setTripMode('round-trip')" 
+          <button
+            @click="flightStore.setTripMode('round-trip')"
             :class="['toggle-btn', { active: flightStore.tripMode === 'round-trip' }]">
             Round-Trip
           </button>
@@ -53,20 +53,20 @@ const handleDebouncedInput = (filter: Partial<FlightFilters>) => {
     </header>
 
     <div class="filter-bar">
-      <input type="text" placeholder="Origin (e.g., CGK)" class="filter-input" 
-             :value="flightStore.filters.origin" 
+      <input type="text" placeholder="Origin (e.g., CGK)" class="filter-input"
+             :value="flightStore.filters.origin"
              @input="handleDebouncedInput({ origin: ($event.target as HTMLInputElement).value })"
              :disabled="flightStore.isDepartureSelected" />
-      <input type="text" placeholder="Destination (e.g., SIN)" class="filter-input" 
-             :value="flightStore.filters.destination" 
+      <input type="text" placeholder="Destination (e.g., SIN)" class="filter-input"
+             :value="flightStore.filters.destination"
              @input="handleDebouncedInput({ destination: ($event.target as HTMLInputElement).value })"
              :disabled="flightStore.isDepartureSelected" />
-      <input type="text" placeholder="Search Airline or Flight #" class="filter-input search-input" 
-             :value="flightStore.filters.search" 
+      <input type="text" placeholder="Search Airline or Flight #" class="filter-input search-input"
+             :value="flightStore.filters.search"
              @input="handleDebouncedInput({ search: ($event.target as HTMLInputElement).value })"
              :disabled="flightStore.isDepartureSelected" />
-      <select class="filter-select" 
-              :value="flightStore.filters.status" 
+      <select class="filter-select"
+              :value="flightStore.filters.status"
               @change="flightStore.setFilter({ status: ($event.target as HTMLSelectElement).value })"
               :disabled="flightStore.isDepartureSelected">
         <option value="all">All Statuses</option>
@@ -78,8 +78,8 @@ const handleDebouncedInput = (filter: Partial<FlightFilters>) => {
       </select>
       <div class="checkbox-group">
         <label class="toggle-switch">
-          <input type="checkbox" id="show-inactive" 
-                 :checked="flightStore.filters.showInactive" 
+          <input type="checkbox" id="show-inactive"
+                 :checked="flightStore.filters.showInactive"
                  @change="flightStore.setFilter({ showInactive: ($event.target as HTMLInputElement).checked })"
                  :disabled="flightStore.isDepartureSelected" />
           <span class="slider"></span>
@@ -89,7 +89,7 @@ const handleDebouncedInput = (filter: Partial<FlightFilters>) => {
       <button class="btn btn-secondary" @click="flightStore.resetFilters()" :disabled="flightStore.isDepartureSelected">Reset</button>
     </div>
 
-    <SelectionBanner 
+    <SelectionBanner
       v-if="flightStore.tripMode === 'round-trip' && flightStore.isDepartureSelected"
       :departure-flight="flightStore.selectedDeparture"
       :return-flight="flightStore.selectedReturn"

@@ -44,7 +44,47 @@ export const useBookingStore = defineStore('booking', {
   }),
   getters: {
     filteredBookings(state): BookingInterface[] {
-      return state.bookings; // Filtering logic will be added later
+      const searchTerm = (state.filters.search || '').trim().toLowerCase();
+      const flightFilter = (state.filters.flightNumber || '').trim().toLowerCase();
+      const classFilter = state.filters.classType || '';
+      const showInactive = state.filters.showInactive ?? false;
+      const statusFilter = state.filters.status || 'all';
+
+      const statusMap: Record<string, number> = {
+        unpaid: 1,
+        paid: 2,
+        cancelled: 3,
+        rescheduled: 4,
+      };
+
+      const normalize = (value: string | number | undefined | null) =>
+        (value ?? '').toString().toLowerCase();
+
+      return state.bookings.filter((booking) => {
+        const matchesSearch =
+          !searchTerm ||
+          [booking.id, booking.flightNumber, booking.route, booking.contactEmail, booking.contactPhone, booking.classType]
+            .some((field) => normalize(field).includes(searchTerm));
+
+        const matchesFlightNumber =
+          !flightFilter ||
+          flightFilter === searchTerm ||
+          normalize(booking.flightNumber).includes(flightFilter);
+
+        const matchesStatus =
+          statusFilter === 'all' || booking.status === statusMap[statusFilter];
+
+        const matchesClass = !classFilter || booking.classType === classFilter;
+        const matchesInactive = showInactive || !booking.isDeleted;
+
+        return (
+          matchesSearch &&
+          matchesFlightNumber &&
+          matchesStatus &&
+          matchesClass &&
+          matchesInactive
+        );
+      });
     },
     totalBookings(state): number {
       return state.bookings.length;
@@ -61,7 +101,8 @@ export const useBookingStore = defineStore('booking', {
       this.loading = true;
       this.error = null;
       try {
-        this.bookings = await BookingService.getAllBookings(this.filters);
+        const { search, flightNumber, ...apiFilters } = this.filters;
+        this.bookings = await BookingService.getAllBookings(apiFilters);
       } catch (err: any) {
         this.error = err.message || 'An unknown error occurred.';
       } finally {
@@ -105,6 +146,10 @@ export const useBookingStore = defineStore('booking', {
     setFilter(filter: Partial<BookingFilters>) {
       this.filters = { ...this.filters, ...filter };
       this.fetchBookings();
+    },
+    updateSearchTerm(value: string) {
+      this.filters.search = value;
+      this.filters.flightNumber = value;
     },
     resetFilters() {
       this.filters = {

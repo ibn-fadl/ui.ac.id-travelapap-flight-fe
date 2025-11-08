@@ -39,6 +39,26 @@ const isSubmitting = ref(false);
 const error = ref<string | null>(null);
 const validationErrors = ref<Record<string, string>>({});
 
+const toLocalISOString = (dateString: string) => {
+  if (!dateString) return '';
+  try {
+    const date = new Date(dateString);
+    // Check if the date is valid
+    if (isNaN(date.getTime())) {
+      throw new Error('Invalid date string provided');
+    }
+    // getTimezoneOffset returns the difference in minutes between UTC and local time.
+    // We need to subtract this offset to get the correct local time.
+    const tzOffset = date.getTimezoneOffset() * 60000; // offset in milliseconds
+    const localTime = new Date(date.getTime() - tzOffset);
+    // .toISOString() returns a string in Z-format (UTC), so we slice it.
+    return localTime.toISOString().slice(0, 16);
+  } catch (error) {
+    console.error('Error converting date to local ISO string:', error);
+    return ''; // Return a fallback value
+  }
+};
+
 // --- Data Loading ---
 onMounted(async () => {
   pageLoading.value = true;
@@ -48,8 +68,8 @@ onMounted(async () => {
 
     // Pre-populate the form with existing data
     form.value = {
-      departureTime: flightData.departureTime.substring(0, 16), // Format for datetime-local
-      arrivalTime: flightData.arrivalTime.substring(0, 16),
+      departureTime: toLocalISOString(flightData.departureTime), // Format for datetime-local
+      arrivalTime: toLocalISOString(flightData.arrivalTime),
       terminal: flightData.terminal,
       gate: flightData.gate,
       baggageAllowance: flightData.baggageAllowance,

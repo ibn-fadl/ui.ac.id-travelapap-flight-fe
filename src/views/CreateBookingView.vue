@@ -20,6 +20,17 @@ const router = useRouter();
 const bookingStore = useBookingStore();
 const { showToast } = useToast();
 
+type TripType = 'departure' | 'return';
+const TRIP_TYPES: TripType[] = ['departure', 'return'];
+const tripLabels: Record<TripType, string> = {
+  departure: 'Departure Flight',
+  return: 'Return Flight',
+};
+
+const departureFlightId = computed(() => route.query.departureFlightId as string | undefined);
+const returnFlightId = computed(() => route.query.returnFlightId as string | undefined);
+const hasReturnFlight = computed(() => Boolean(returnFlightId.value));
+
 const steps = [
   {
     id: 'contact',
@@ -61,10 +72,18 @@ const passengerDirectory = computed(() =>
   }))
 );
 
-const routeFlightId = computed(() => route.query.departureFlightId as string | undefined);
-const flight = ref<FlightDetailInterface | null>(null);
-const loadingFlight = ref(false);
-const loadError = ref<string | null>(null);
+const flights = reactive<Record<TripType, FlightDetailInterface | null>>({
+  departure: null,
+  return: null,
+});
+const flightLoading = reactive<Record<TripType, boolean>>({
+  departure: false,
+  return: false,
+});
+const flightErrors = reactive<Record<TripType, string | null>>({
+  departure: null,
+  return: null,
+});
 
 const contactForm = reactive({
   contactEmail: '',
@@ -72,7 +91,16 @@ const contactForm = reactive({
   passengerCount: 1,
 });
 
-const passengerSlots = ref<BookingPassengerSelectionInput[]>([]);
+interface PassengerSlot {
+  passengerId: string;
+  seatCodes: Record<string, string>;
+}
+
+const passengerSlots = ref<PassengerSlot[]>([]);
+const createEmptySeatCodes = (): Record<string, string> => ({
+  departure: '',
+  return: '',
+});
 
 const normalizePassengerCount = (value: number) => {
   const sanitized = Number.isFinite(value) ? Math.floor(value) : 1;
@@ -89,7 +117,7 @@ watch(
     }
 
     while (passengerSlots.value.length < normalized) {
-      passengerSlots.value.push({ passengerId: '', seatCode: '' });
+      passengerSlots.value.push({ passengerId: '', seatCodes: createEmptySeatCodes() });
     }
     while (passengerSlots.value.length > normalized) {
       passengerSlots.value.pop();
@@ -98,70 +126,124 @@ watch(
   { immediate: true }
 );
 
-const selectedClassId = ref<number | null>(null);
-const seatList = ref<SeatInterface[]>([]);
-const seatsLoading = ref(false);
-const seatsError = ref<string | null>(null);
+const selectedClassIds = reactive<Record<TripType, number | null>>({
+  departure: null,
+  return: null,
+});
+const seatState = reactive<Record<TripType, { seats: SeatInterface[]; loading: boolean; error: string | null }>>({
+  departure: { seats: [], loading: false, error: null },
+  return: { seats: [], loading: false, error: null },
+});
 
-watch(
-  () => selectedClassId.value,
-  async (value) => {
-    seatList.value = [];
-    seatsError.value = null;
-    passengerSlots.value.forEach((slot) => {
-      slot.seatCode = '';
-    });
+const clearSeatCodesForTrip = (trip: TripType) => {
+  passengerSlots.value.forEach((slot) => {
+    slot.seatCodes[trip] = '';
+  });
+};
 
-    if (!value) {
-      return;
+const setupSeatWatcher = (trip: TripType) => {
+  watch(
+    () => selectedClassIds[trip],
+    async (value) => {
+      seatState[trip].seats = [];
+      seatState[trip].error = null;
+      clearSeatCodesForTrip(trip);
+
+      if (!value) {
+        return;
+      }
+
+      seatState[trip].loading = true;
+      try {
+        const seats = await flightService.getSeatsByClassId(value);
+        seatState[trip].seats = seats;
+      } catch (err: any) {
+        seatState[trip].error = err.response?.data?.message || 'Unable to load seat availability.';
+      } finally {
+        seatState[trip].loading = false;
+      }
     }
+  );
+};
 
-    seatsLoading.value = true;
-    try {
-      const seats = await flightService.getSeatsByClassId(value);
-      seatList.value = seats;
-    } catch (err: any) {
-      seatsError.value = err.response?.data?.message || 'Unable to load seat availability.';
-    } finally {
-      seatsLoading.value = false;
-    }
-  }
-);
+TRIP_TYPES.forEach(setupSeatWatcher);
 
 const currentStep = ref(0);
 const stepError = ref<string | null>(null);
 const submitting = ref(false);
 
-const selectedClass = computed(() =>
-  flight.value?.classes.find((cls) => cls.id === selectedClassId.value) ?? null
-);
+const selectedClasses = computed(() => ({
+  departure:
+    flights.departure?.classes.find((cls) => cls.id === selectedClassIds.departure) ?? null,
+  return:
+    flights.return?.classes.find((cls) => cls.id === selectedClassIds.return) ?? null,
+}));
 
-const availableSeats = computed(() =>
-  seatList.value.filter((seat) => !seat.isBooked)
-);
+const getAvailableSeats = (trip: TripType) =>
+  seatState[trip].seats.filter((seat) => !seat.isBooked);
 
-const flightIssue = computed(() => {
-  if (!flight.value) {
-    return null;
+const seatChipsForPassenger = (slot: PassengerSlot) =>
+  activeTrips.value
+    .map((trip) => ({
+      trip,
+      label: tripLabels[trip],
+      seat: slot.seatCodes[trip] || '',
+    }))
+    .filter((chip) => Boolean(chip.seat));
+
+const activeTrips = computed<TripType[]>(() => {
+  const trips: TripType[] = [];
+  if (flights.departure) {
+    trips.push('departure');
   }
-  if (flight.value.isDeleted) {
-    return 'This flight is inactive and cannot be booked.';
+  if (hasReturnFlight.value && flights.return) {
+    trips.push('return');
   }
-  if (flight.value.status !== 1) {
-    return 'Only scheduled flights can be booked.';
+  return trips;
+});
+
+const blockingError = computed(() => {
+  if (!departureFlightId.value) {
+    return 'Missing departure flight identifier. Please select a flight first.';
   }
-  if (flight.value.originAirportCode === flight.value.destinationAirportCode) {
-    return 'Origin and destination airports must differ.';
+  if (flightErrors.departure) return flightErrors.departure;
+  const departureIssue = evaluateFlightIssue(flights.departure);
+  if (departureIssue) return departureIssue;
+  if (hasReturnFlight.value) {
+    if (flightErrors.return) return flightErrors.return;
+    if (!flights.return) return 'Return flight data is not available yet.';
+    const returnIssue = evaluateFlightIssue(flights.return);
+    if (returnIssue) return returnIssue;
   }
   return null;
 });
 
-const totalPrice = computed(() => {
-  if (!selectedClass.value) {
-    return 0;
+const loadingState = computed(
+  () => flightLoading.departure || (hasReturnFlight.value && flightLoading.return)
+);
+
+const evaluateFlightIssue = (flightData: FlightDetailInterface | null) => {
+  if (!flightData) {
+    return 'Flight data is not available yet.';
   }
-  return selectedClass.value.price * contactForm.passengerCount;
-});
+  if (flightData.isDeleted) {
+    return 'This flight is inactive and cannot be booked.';
+  }
+  if (flightData.status !== 1) {
+    return 'Only scheduled flights can be booked.';
+  }
+  if (flightData.originAirportCode === flightData.destinationAirportCode) {
+    return 'Origin and destination airports must differ.';
+  }
+  return null;
+};
+
+const totalPrice = computed(() =>
+  activeTrips.value.reduce((sum, trip) => {
+    const cls = selectedClasses.value[trip];
+    return sum + (cls ? cls.price * contactForm.passengerCount : 0);
+  }, 0)
+);
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const phonePattern = /^\+?[0-9]{7,15}$/;
@@ -169,17 +251,27 @@ const phonePattern = /^\+?[0-9]{7,15}$/;
 const getPassengerName = (id: string) =>
   passengers.value.find((entry) => entry.id === id)?.fullName;
 
-const isSeatTakenByOther = (seatCode: string, index: number) =>
+const isSeatTakenByOther = (trip: TripType, seatCode: string, index: number) =>
   passengerSlots.value.some(
-    (slot, slotIndex) => slotIndex !== index && slot.seatCode === seatCode
+    (slot, slotIndex) => slotIndex !== index && slot.seatCodes[trip] === seatCode
   );
 
 const validateContactStep = () => {
-  if (!flight.value) {
+  if (!flights.departure) {
     return 'Flight information is still loading.';
   }
-  if (flightIssue.value) {
-    return flightIssue.value;
+  const departureIssue = evaluateFlightIssue(flights.departure);
+  if (departureIssue) {
+    return departureIssue;
+  }
+  if (hasReturnFlight.value) {
+    if (!flights.return) {
+      return 'Return flight information is still loading.';
+    }
+    const returnIssue = evaluateFlightIssue(flights.return);
+    if (returnIssue) {
+      return returnIssue;
+    }
   }
   if (!contactForm.contactEmail.trim()) {
     return 'Contact email is required.';
@@ -217,36 +309,42 @@ const validatePassengerStep = () => {
 };
 
 const validateClassStep = () => {
-  if (!selectedClass.value) {
-    return 'Select a flight class first.';
-  }
-  if (selectedClass.value.availableSeats < contactForm.passengerCount) {
-    return 'Selected class does not have enough seats.';
+  for (const trip of activeTrips.value) {
+    const cls = selectedClasses.value[trip];
+    if (!cls) {
+      return `Select a class for ${tripLabels[trip]}.`;
+    }
+    if (cls.availableSeats < contactForm.passengerCount) {
+      return `${tripLabels[trip]} does not have enough seats for ${contactForm.passengerCount} passengers.`;
+    }
   }
   return null;
 };
 
 const validateSeatStep = () => {
-  if (!selectedClass.value) {
-    return 'Select a class before picking seats.';
-  }
-  if (seatsLoading.value) {
-    return 'Waiting for seat availability.';
-  }
-  const seatCodes = passengerSlots.value.map((slot) => slot.seatCode.trim());
-  if (seatCodes.some((code) => !code)) {
-    return 'Assign a seat for every passenger.';
-  }
-  const duplicates = seatCodes.filter(
-    (code, index, arr) => arr.indexOf(code) !== index
-  );
-  if (duplicates.length) {
-    return 'Each passenger must have a distinct seat.';
-  }
-  const availableSeatCodes = new Set(availableSeats.value.map((seat) => seat.seatCode));
-  const invalidSeat = seatCodes.find((code) => !availableSeatCodes.has(code));
-  if (invalidSeat) {
-    return `Seat ${invalidSeat} is no longer available.`;
+  for (const trip of activeTrips.value) {
+    const cls = selectedClasses.value[trip];
+    if (!cls) {
+      return `Select a class for ${tripLabels[trip]} before picking seats.`;
+    }
+    if (seatState[trip].loading) {
+      return `Waiting for seat availability for ${tripLabels[trip]}.`;
+    }
+    const seatCodes = passengerSlots.value.map((slot) => (slot.seatCodes[trip] || '').trim());
+    if (seatCodes.some((code) => !code)) {
+      return `Assign a seat for every passenger on ${tripLabels[trip]}.`;
+    }
+    const duplicates = seatCodes.filter(
+      (code, index, arr) => arr.indexOf(code) !== index
+    );
+    if (duplicates.length) {
+      return `${tripLabels[trip]} has duplicate seat selections.`;
+    }
+    const availableSeatCodes = new Set(getAvailableSeats(trip).map((seat) => seat.seatCode));
+    const invalidSeat = seatCodes.find((code) => !availableSeatCodes.has(code));
+    if (invalidSeat) {
+      return `Seat ${invalidSeat} on ${tripLabels[trip]} is no longer available.`;
+    }
   }
   return null;
 };
@@ -280,17 +378,22 @@ const handleBack = () => {
   }
 };
 
-const buildPayload = (): BookingCreateRequest => ({
-  flightId: flight.value!.id,
-  classFlightId: selectedClass.value!.id,
-  contactEmail: contactForm.contactEmail.trim(),
-  contactPhone: contactForm.contactPhone.trim(),
-  passengerCount: contactForm.passengerCount,
-  passengers: passengerSlots.value.map((slot) => ({
-    passengerId: slot.passengerId.trim(),
-    seatCode: slot.seatCode.trim(),
-  })),
-});
+const buildPayload = (trip: TripType): BookingCreateRequest => {
+  if (!flights[trip] || !selectedClasses.value[trip]) {
+    throw new Error('Flight information is missing.');
+  }
+  return {
+    flightId: flights[trip]!.id,
+    classFlightId: selectedClasses.value[trip]!.id,
+    contactEmail: contactForm.contactEmail.trim(),
+    contactPhone: contactForm.contactPhone.trim(),
+    passengerCount: contactForm.passengerCount,
+    passengers: passengerSlots.value.map((slot) => ({
+      passengerId: slot.passengerId.trim(),
+      seatCode: (slot.seatCodes[trip] || '').trim(),
+    })),
+  };
+};
 
 const handleSubmit = async () => {
   const error = validateStep(currentStep.value);
@@ -298,8 +401,12 @@ const handleSubmit = async () => {
     stepError.value = error;
     return;
   }
-  if (!flight.value || !selectedClass.value) {
-    stepError.value = 'Flight or class information is missing.';
+  if (!flights.departure || !selectedClasses.value.departure) {
+    stepError.value = 'Departure flight or class information is missing.';
+    return;
+  }
+  if (hasReturnFlight.value && (!flights.return || !selectedClasses.value.return)) {
+    stepError.value = 'Return flight or class information is missing.';
     return;
   }
 
@@ -307,12 +414,21 @@ const handleSubmit = async () => {
   stepError.value = null;
 
   try {
-    const createdBookings = await bookingService.createBooking(buildPayload());
-    const bookingId = createdBookings[0]?.id;
-    showToast('Booking created successfully.', 'success');
+    const departureResult = await bookingService.createBooking(buildPayload('departure'));
+    let targetBookingId = departureResult[0]?.id;
+
+    if (hasReturnFlight.value && flights.return) {
+      await bookingService.createBooking(buildPayload('return'));
+    }
+
+    showToast(
+      hasReturnFlight.value ? 'Round-trip booking created successfully.' : 'Booking created successfully.',
+      'success'
+    );
     bookingStore.fetchBookings();
-    if (bookingId) {
-      router.push({ name: 'booking-detail', params: { id: bookingId } });
+
+    if (targetBookingId) {
+      router.push({ name: 'booking-detail', params: { id: targetBookingId } });
     } else {
       router.push({ name: 'bookings' });
     }
@@ -330,27 +446,53 @@ const handleCancel = () => {
   router.back();
 };
 
-const loadFlight = async () => {
-  const id = routeFlightId.value;
-  if (!id) {
-    loadError.value = 'Missing flight identifier. Please select a flight first.';
+const loadFlight = async (trip: TripType, id?: string) => {
+  if (trip === 'departure' && !id) {
+    flightErrors.departure = 'Missing departure flight identifier. Please select a flight first.';
     return;
   }
 
-  loadingFlight.value = true;
-  loadError.value = null;
+  if (!id) {
+    flights[trip] = null;
+    selectedClassIds[trip] = null;
+    return;
+  }
+
+  flightLoading[trip] = true;
+  flightErrors[trip] = null;
   try {
     const fetchedFlight = await flightService.getFlightById(id);
-    flight.value = fetchedFlight;
-    const firstClass = fetchedFlight.classes[0];
-    selectedClassId.value = firstClass ? firstClass.id : null;
+    flights[trip] = fetchedFlight;
+    selectedClassIds[trip] = fetchedFlight.classes[0]?.id ?? null;
   } catch (err: any) {
-    loadError.value =
-      err.response?.data?.message || err.message || 'Unable to load flight data.';
+    const message = err.response?.data?.message || err.message || 'Unable to load flight data.';
+    flightErrors[trip] = message;
   } finally {
-    loadingFlight.value = false;
+    flightLoading[trip] = false;
   }
 };
+
+watch(
+  () => departureFlightId.value,
+  (id) => {
+    loadFlight('departure', id);
+  },
+  { immediate: true }
+);
+
+watch(
+  () => returnFlightId.value,
+  (id) => {
+    if (id) {
+      loadFlight('return', id);
+    } else {
+      flights.return = null;
+      selectedClassIds.return = null;
+      seatState.return.seats = [];
+    }
+  },
+  { immediate: true }
+);
 
 const loadPassengers = async () => {
   passengersLoading.value = true;
@@ -365,17 +507,8 @@ const loadPassengers = async () => {
 };
 
 onMounted(() => {
-  loadFlight();
   loadPassengers();
 });
-watch(
-  () => routeFlightId.value,
-  () => {
-    if (!loadingFlight.value) {
-      loadFlight();
-    }
-  }
-);
 </script>
 
 <template>
@@ -385,8 +518,11 @@ watch(
         <div>
           <p class="section-label">One-Way Booking Wizard</p>
           <h1>Confirm your trip</h1>
-          <p v-if="flight" class="flight-route">
-            {{ flight.airlineName }} · {{ flight.originAirportCode }} → {{ flight.destinationAirportCode }}
+          <p v-if="flights.departure" class="flight-route">
+            {{ flights.departure.airlineName }} · {{ flights.departure.originAirportCode }} → {{ flights.departure.destinationAirportCode }}
+            <template v-if="hasReturnFlight && flights.return">
+              &nbsp;| Return: {{ flights.return.originAirportCode }} → {{ flights.return.destinationAirportCode }}
+            </template>
           </p>
         </div>
         <div class="stepper">
@@ -405,39 +541,51 @@ watch(
         </div>
       </header>
 
-      <section v-if="loadingFlight" class="state-card">
+      <section v-if="loadingState" class="state-card">
         <div class="loader"></div>
         <p>Loading flight information...</p>
       </section>
 
-      <section v-else-if="loadError" class="state-card error">
-        <p>{{ loadError }}</p>
+      <section v-else-if="blockingError" class="state-card error">
+        <p>{{ blockingError }}</p>
         <button class="btn btn-secondary" @click="handleCancel">Back to flights</button>
       </section>
 
-      <section v-else-if="flight && flightIssue" class="state-card error">
-        <p>{{ flightIssue }}</p>
-        <button class="btn btn-secondary" @click="handleCancel">Back</button>
-      </section>
-
-      <section v-else-if="flight" class="wizard-card">
+      <section v-else-if="flights.departure" class="wizard-card">
         <div class="flight-summary">
-          <div>
-            <span class="label">Flight</span>
-            <p>{{ flight.id }} · {{ flight.airlineName }}</p>
-          </div>
-          <div>
-            <span class="label">Route</span>
-            <p>{{ flight.originAirportCode }} → {{ flight.destinationAirportCode }}</p>
-          </div>
-          <div>
-            <span class="label">Departure</span>
-            <p>{{ formatDateTime(flight.departureTime) }}</p>
-          </div>
-          <div>
-            <span class="label">Arrival</span>
-            <p>{{ formatDateTime(flight.arrivalTime) }}</p>
-          </div>
+          <article
+            v-for="trip in activeTrips"
+            :key="`summary-${trip}`"
+            class="flight-summary-card"
+          >
+            <header class="card-header">
+              <div>
+                <p class="section-label">{{ tripLabels[trip] }}</p>
+                <h2>{{ flights[trip]?.id }}</h2>
+              </div>
+              <span class="info-pill">
+                {{ flights[trip]?.originAirportCode }} → {{ flights[trip]?.destinationAirportCode }}
+              </span>
+            </header>
+            <div class="flight-summary-grid">
+              <div>
+                <span class="label">Departure</span>
+                <p>{{ formatDateTime(flights[trip]?.departureTime) }}</p>
+              </div>
+              <div>
+                <span class="label">Arrival</span>
+                <p>{{ formatDateTime(flights[trip]?.arrivalTime) }}</p>
+              </div>
+              <div>
+                <span class="label">Airline</span>
+                <p>{{ flights[trip]?.airlineName }}</p>
+              </div>
+              <div>
+                <span class="label">Aircraft</span>
+                <p>{{ flights[trip]?.airplaneModel }}</p>
+              </div>
+            </div>
+          </article>
         </div>
 
         <div class="step-wrapper">
@@ -512,85 +660,110 @@ watch(
           </div>
 
           <div v-else-if="currentStep === 2" class="step-section">
-            <div class="class-grid">
-              <label
-                v-for="cls in flight.classes"
-                :key="cls.id"
-                class="class-card"
-                :class="{
-                  selected: selectedClassId === cls.id,
-                  disabled: cls.availableSeats < contactForm.passengerCount,
-                }"
-              >
-                <input
-                  type="radio"
-                  name="class-option"
-                  :value="cls.id"
-                  v-model.number="selectedClassId"
-                />
-                <div class="class-content">
-                  <div class="class-header">
-                    <h3>{{ cls.classType }}</h3>
-                    <span class="class-price">{{ formatCurrency(cls.price) }}/pax</span>
+            <p v-if="activeTrips.length" class="total-hint">
+              Estimated total ({{ activeTrips.length }} flight{{ activeTrips.length === 1 ? '' : 's' }}):
+              {{ formatCurrency(totalPrice) }}
+            </p>
+            <div
+              v-for="trip in activeTrips"
+              :key="`class-${trip}`"
+              class="trip-section"
+            >
+              <div class="trip-heading">
+                <h3>{{ tripLabels[trip] }}</h3>
+                <p class="muted-hint">
+                  {{ flights[trip]?.originAirportCode }} → {{ flights[trip]?.destinationAirportCode }}
+                </p>
+              </div>
+              <div class="class-grid">
+                <label
+                  v-for="cls in flights[trip]?.classes || []"
+                  :key="cls.id"
+                  class="class-card"
+                  :class="{
+                    selected: selectedClassIds[trip] === cls.id,
+                    disabled: cls.availableSeats < contactForm.passengerCount,
+                  }"
+                >
+                  <input
+                    type="radio"
+                    :name="`class-option-${trip}`"
+                    :value="cls.id"
+                    v-model.number="selectedClassIds[trip]"
+                  />
+                  <div class="class-content">
+                    <div class="class-header">
+                      <h3>{{ cls.classType }}</h3>
+                      <span class="class-price">{{ formatCurrency(cls.price) }}/pax</span>
+                    </div>
+                    <p class="class-detail">{{ cls.availableSeats }} seats available</p>
+                    <p class="class-detail">{{ cls.seatCapacity }} total seats</p>
+                    <p
+                      v-if="cls.availableSeats < contactForm.passengerCount"
+                      class="class-warning"
+                    >
+                      Not enough seats for {{ contactForm.passengerCount }} traveler
+                      {{ contactForm.passengerCount === 1 ? '' : 's' }}
+                    </p>
                   </div>
-                  <p class="class-detail">{{ cls.availableSeats }} seats available</p>
-                  <p class="class-detail">{{ cls.seatCapacity }} total seats</p>
-                  <p v-if="cls.availableSeats < contactForm.passengerCount" class="class-warning">
-                    Not enough seats for {{ contactForm.passengerCount }} traveler
-                  </p>
-                </div>
-              </label>
+                </label>
+              </div>
             </div>
           </div>
 
           <div v-else-if="currentStep === 3" class="step-section">
-            <div class="availability-note">
-              <p>
-                {{ availableSeats.length }} seat
-                {{ availableSeats.length === 1 ? 'is' : 'are' }} available for
-                {{ selectedClass?.classType || 'the selected class' }}.
-              </p>
-              <p v-if="selectedClass">
-                {{ selectedClass.availableSeats }} seat
-                {{ selectedClass.availableSeats === 1 ? 'remains' : 'remain' }} in
-                {{ selectedClass.classType }}.
-              </p>
-            </div>
-            <p v-if="seatsLoading" class="muted-hint">Fetching seat layout...</p>
-            <p v-if="seatsError" class="form-error">{{ seatsError }}</p>
-            <div class="seat-grid">
-              <article
-                v-for="(slot, index) in passengerSlots"
-                :key="index"
-                class="seat-card"
+            <div
+              v-for="trip in activeTrips"
+              :key="`seats-${trip}`"
+              class="trip-section"
+            >
+              <div class="trip-heading">
+                <h3>{{ tripLabels[trip] }} Seats</h3>
+                <p class="muted-hint">
+                  {{ getAvailableSeats(trip).length }} seat
+                  {{ getAvailableSeats(trip).length === 1 ? 'is' : 'are' }} available in
+                  {{ selectedClasses[trip]?.classType || 'selected class' }}.
+                </p>
+              </div>
+              <p v-if="seatState[trip].loading" class="muted-hint">Fetching seat layout...</p>
+              <p v-if="seatState[trip].error" class="form-error">{{ seatState[trip].error }}</p>
+              <div class="seat-grid">
+                <article
+                  v-for="(slot, index) in passengerSlots"
+                  :key="`${trip}-${index}`"
+                  class="seat-card"
+                >
+                  <header>
+                    <span class="pill">Passenger {{ index + 1 }}</span>
+                    <p class="passenger-name">
+                      {{ getPassengerName(slot.passengerId) || slot.passengerId || 'Unknown traveler' }}
+                    </p>
+                  </header>
+                  <label class="form-field">
+                    <span>Seat code</span>
+                    <select v-model="slot.seatCodes[trip]">
+                      <option disabled value="">Select a seat</option>
+                      <option
+                        v-for="seat in getAvailableSeats(trip)"
+                        :key="seat.id"
+                        :value="seat.seatCode"
+                        :disabled="isSeatTakenByOther(trip, seat.seatCode, index)"
+                      >
+                        {{ seat.seatCode }}
+                      </option>
+                    </select>
+                  </label>
+                </article>
+              </div>
+              <p
+                v-if="getAvailableSeats(trip).length < contactForm.passengerCount"
+                class="form-error"
               >
-                <header>
-                  <span class="pill">Passenger {{ index + 1 }}</span>
-                  <p class="passenger-name">
-                    {{ getPassengerName(slot.passengerId) || slot.passengerId || 'Unknown traveler' }}
-                  </p>
-                </header>
-                <label class="form-field">
-                  <span>Seat code</span>
-                  <select v-model="slot.seatCode">
-                    <option disabled value="">Select a seat</option>
-                    <option
-                      v-for="seat in availableSeats"
-                      :key="seat.id"
-                      :value="seat.seatCode"
-                      :disabled="isSeatTakenByOther(seat.seatCode, index)"
-                    >
-                      {{ seat.seatCode }}
-                    </option>
-                  </select>
-                </label>
-              </article>
+                Only {{ getAvailableSeats(trip).length }} seat
+                {{ getAvailableSeats(trip).length === 1 ? 'is' : 'are' }} available for
+                {{ tripLabels[trip] }}; this booking requires {{ contactForm.passengerCount }}.
+              </p>
             </div>
-            <p v-if="availableSeats.length < contactForm.passengerCount" class="form-error">
-              Only {{ availableSeats.length }} seat
-              {{ availableSeats.length === 1 ? 'is' : 'are' }} available; this booking
-              requires {{ contactForm.passengerCount }}.
-            </p>
           </div>
 
           <div v-else class="step-section">
@@ -601,14 +774,18 @@ watch(
                 <p>Phone: {{ contactForm.contactPhone || 'N/A' }}</p>
                 <p>Passengers: {{ contactForm.passengerCount }}</p>
               </article>
-              <article class="review-card">
-                <h3>Flight Summary</h3>
-                <p>{{ flight.originAirportCode }} → {{ flight.destinationAirportCode }}</p>
+              <article
+                v-for="trip in activeTrips"
+                :key="`review-flight-${trip}`"
+                class="review-card"
+              >
+                <h3>{{ tripLabels[trip] }}</h3>
+                <p>{{ flights[trip]?.originAirportCode }} → {{ flights[trip]?.destinationAirportCode }}</p>
                 <p>
-                  Depart: {{ formatDateTime(flight.departureTime) }} · Arrive:
-                  {{ formatDateTime(flight.arrivalTime) }}
+                  Depart: {{ formatDateTime(flights[trip]?.departureTime) }} · Arrive:
+                  {{ formatDateTime(flights[trip]?.arrivalTime) }}
                 </p>
-                <p>Class: {{ selectedClass?.classType || '—' }}</p>
+                <p>Class: {{ selectedClasses[trip]?.classType || '—' }}</p>
               </article>
               <article class="review-card">
                 <h3>Passengers & Seats</h3>
@@ -616,14 +793,26 @@ watch(
                   <li v-for="(slot, index) in passengerSlots" :key="index">
                     <strong>Passenger {{ index + 1 }}:</strong>
                     {{ getPassengerName(slot.passengerId) || slot.passengerId || 'Unknown' }}
-                    <span class="chip" v-if="slot.seatCode">Seat {{ slot.seatCode }}</span>
+                    <span
+                      v-for="chip in seatChipsForPassenger(slot)"
+                      :key="`${chip.trip}-${slot.passengerId || index}`"
+                      class="chip"
+                    >
+                      {{ chip.label }} · Seat {{ chip.seat }}
+                    </span>
                   </li>
                 </ul>
               </article>
               <article class="review-card total-card">
                 <h3>Price</h3>
-                <p>Per traveler: {{ formatCurrency(selectedClass?.price || 0) }}</p>
-                <p>Total: {{ formatCurrency(totalPrice) }}</p>
+                <p>Total (all flights): {{ formatCurrency(totalPrice) }}</p>
+                <p class="muted-hint">
+                  {{
+                    hasReturnFlight
+                      ? 'Round-trip total including both flights.'
+                      : 'One-way total.'
+                  }}
+                </p>
               </article>
             </div>
           </div>
@@ -759,13 +948,25 @@ watch(
 
 .flight-summary {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   gap: 1rem;
   margin-bottom: 1.5rem;
+}
+
+.flight-summary-card {
   background: #1f2738;
-  padding: 1.25rem;
   border-radius: 12px;
   border: 1px solid #3b4152;
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.flight-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 0.75rem;
 }
 
 .flight-summary .label {
@@ -829,31 +1030,21 @@ watch(
   font-size: 0.9rem;
 }
 
-.passenger-directory {
+.trip-section {
   background: #1f2738;
   border-radius: 12px;
-  padding: 1rem;
   border: 1px solid #3b4152;
+  padding: 1rem 1.25rem;
+  margin-bottom: 1.25rem;
 }
 
-.passenger-directory ul {
-  list-style: none;
-  margin: 0;
-  padding: 0;
+.trip-heading {
   display: flex;
+  justify-content: space-between;
+  align-items: center;
   flex-wrap: wrap;
-  gap: 0.75rem;
-}
-
-.passenger-directory li {
-  flex: 1 1 200px;
-  background: #242d40;
-  border-radius: 10px;
-  padding: 0.65rem 0.9rem;
-  border: 1px solid #3b4152;
-  display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
 }
 
 .passenger-name {
@@ -965,6 +1156,12 @@ watch(
   gap: 0.5rem;
 }
 
+.total-hint {
+  color: #f7fafc;
+  font-weight: 600;
+  margin: 0 0 0.5rem;
+}
+
 .seat-card header {
   display: flex;
   justify-content: space-between;
@@ -973,12 +1170,14 @@ watch(
 
 .chip {
   display: inline-flex;
-  padding: 0.1rem 0.5rem;
+  padding: 0.2rem 0.85rem;
   border-radius: 999px;
   background: #805ad5;
   color: #fff;
-  font-size: 0.75rem;
+  font-size: 0.8rem;
   margin-left: 0.25rem;
+  margin-top: 0.25rem;
+  letter-spacing: 0.01em;
 }
 
 .review-grid {

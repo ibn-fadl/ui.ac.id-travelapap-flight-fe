@@ -14,13 +14,10 @@ onMounted(() => {
 });
 
 const handleSearch = (event: Event) => {
-  bookingStore.setFilter({ search: (event.target as HTMLInputElement).value });
+  bookingStore.updateSearchTerm((event.target as HTMLInputElement).value);
 };
 const handleStatusChange = (event: Event) => {
   bookingStore.setFilter({ status: (event.target as HTMLSelectElement).value });
-};
-const handleFlightNumberChange = (event: Event) => {
-  bookingStore.setFilter({ flightNumber: (event.target as HTMLInputElement).value });
 };
 const handleClassTypeChange = (event: Event) => {
   bookingStore.setFilter({ classType: (event.target as HTMLSelectElement).value });
@@ -75,17 +72,17 @@ const handleCancelBooking = async (bookingId: string) => {
 <template>
   <div class="bookings-page">
     <header class="page-header">
-      <h1>Flight Bookings</h1>
+      <h1>Bookings</h1>
       <div class="header-actions">
         <button
           @click="bookingStore.fetchBookings()"
-          class="action-btn refresh-btn"
+          class="btn btn-secondary"
           :disabled="bookingStore.loading"
         >
           <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>
           <span>Refresh</span>
         </button>
-        <router-link class="action-btn stats-btn" :to="{ name: 'booking-statistics' }">
+        <router-link class="btn btn-primary" :to="{ name: 'booking-statistics' }">
           <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h18v2H3z"></path><path d="M8 7v14"></path><path d="M16 7v10"></path><path d="M12 11v10"></path><path d="M3 5l3-2h12l3 2H3z"></path></svg>
           <span>View Statistics</span>
         </router-link>
@@ -94,29 +91,36 @@ const handleCancelBooking = async (bookingId: string) => {
 
     <div class="stats-and-filters">
       <div class="filter-bar">
-        <input type="text" placeholder="Search Booking ID, Email, Phone..." class="search-input" :value="bookingStore.filters.search" @input="handleSearch" />
-        <input type="text" placeholder="Flight Number" class="filter-input" :value="bookingStore.filters.flightNumber" @input="handleFlightNumberChange" />
-        <select class="filter-select" :value="bookingStore.filters.status" @change="handleStatusChange">
-          <option value="all">All Statuses</option>
-          <option value="unpaid">Unpaid</option>
-          <option value="paid">Paid</option>
-          <option value="cancelled">Cancelled</option>
-          <option value="rescheduled">Rescheduled</option>
-        </select>
-        <select class="filter-select" :value="bookingStore.filters.classType" @change="handleClassTypeChange">
-          <option value="">All Classes</option>
-          <option value="Economy">Economy</option>
-          <option value="Business">Business</option>
-          <option value="First">First</option>
-        </select>
-        <div class="checkbox-group">
-          <label class="toggle-switch">
-            <input type="checkbox" :checked="bookingStore.filters.showInactive" @change="handleShowInactiveChange" />
-            <span class="slider"></span>
-          </label>
-          <label class="toggle-label">Show Inactive</label>
+        <div class="filter-controls">
+          <input
+            type="text"
+            placeholder="Search Booking ID, Email, Phone, Flight..."
+            class="search-input"
+            :value="bookingStore.filters.search"
+            @input="handleSearch"
+          />
+          <select class="filter-select" :value="bookingStore.filters.status" @change="handleStatusChange">
+            <option value="all">All Statuses</option>
+            <option value="unpaid">Unpaid</option>
+            <option value="paid">Paid</option>
+            <option value="cancelled">Cancelled</option>
+            <option value="rescheduled">Rescheduled</option>
+          </select>
+          <select class="filter-select" :value="bookingStore.filters.classType" @change="handleClassTypeChange">
+            <option value="">All Classes</option>
+            <option value="Economy">Economy</option>
+            <option value="Business">Business</option>
+            <option value="First">First</option>
+          </select>
+          <div class="checkbox-group">
+            <label class="toggle-switch">
+              <input type="checkbox" :checked="bookingStore.filters.showInactive" @change="handleShowInactiveChange" />
+              <span class="slider"></span>
+            </label>
+            <label class="toggle-label">Show Inactive</label>
+          </div>
         </div>
-        <button class="action-btn reset-btn" @click="bookingStore.resetFilters()">Reset</button>
+        <button class="btn btn-secondary reset-button" @click="bookingStore.resetFilters()">Reset Filters</button>
       </div>
       <div class="stats-container">
         <div class="stat-card">
@@ -226,22 +230,35 @@ const handleCancelBooking = async (bookingId: string) => {
   display: flex;
   gap: 1rem;
 }
-.stats-btn {
-  background: linear-gradient(135deg, #38b2ac, #63b3ed);
-  box-shadow: 0 12px 20px rgba(56, 178, 172, 0.35);
+
+/* Button Styles copied from FlightsView.vue and AirplanesView.vue */
+.btn {
+  padding: 0.75rem 1.5rem;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
 }
-.stats-btn:not(:disabled):hover {
-  filter: brightness(1.05);
+
+.btn-primary {
+  background: linear-gradient(135deg, #6b46c1, #805ad5);
+  color: white;
 }
-.reset-btn {
-  background: transparent;
-  color: #cbd5e0;
-  border: 1px solid rgba(203, 213, 224, 0.3);
+.btn-primary:hover:not(:disabled) { filter: brightness(1.1); }
+
+.btn-secondary {
+  background-color: #4a5568;
+  color: #e2e8f0;
 }
-.reset-btn:not(:disabled):hover {
-  color: #fff;
-  border-color: rgba(255, 255, 255, 0.6);
-}
+.btn-secondary:hover:not(:disabled) { background-color: #718096; }
+
+/* Original BookingsView.vue styles below */
+.toggle-switch input:checked + .slider:before { transform: translateX(22px); }
 .filter-bar {
   display: flex;
   flex-wrap: wrap;
@@ -249,8 +266,21 @@ const handleCancelBooking = async (bookingId: string) => {
   background: #2d3748;
   padding: 1rem;
   border-radius: 12px;
+  align-items: center;
 }
-.search-input, .filter-input, .filter-select {
+.filter-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  flex: 1 1 70%;
+  min-width: 240px;
+}
+.reset-button {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+.search-input,
+.filter-select {
   background-color: #1a202c;
   color: #e2e8f0;
   border: 1px solid #4a5568;
@@ -259,7 +289,8 @@ const handleCancelBooking = async (bookingId: string) => {
   font-size: 1rem;
 }
 .search-input {
-  flex-grow: 1;
+  flex: 1 1 320px;
+  min-width: 240px;
 }
 .stats-container {
   display: flex;
