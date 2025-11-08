@@ -1,5 +1,10 @@
 import http from './http';
-import type { BookingInterface, BookingDetailInterface, CommonResponseInterface } from '../interfaces';
+import type {
+  BookingInterface,
+  BookingDetailInterface,
+  BookingCreateRequest,
+  CommonResponseInterface,
+} from '../interfaces';
 
 export interface BookingFilters {
   status: string;
@@ -24,6 +29,14 @@ class BookingService {
 
   async cancelBooking(id: string): Promise<BookingDetailInterface> {
     const response = await http.post<CommonResponseInterface<BookingDetailInterface>>(`/bookings/${id}/delete`);
+    return response.data.data;
+  }
+
+  async createBooking(payload: BookingCreateRequest): Promise<BookingInterface[]> {
+    const response = await http.post<CommonResponseInterface<BookingInterface[]>>(
+      '/bookings/create',
+      payload
+    );
     return response.data.data;
   }
 }

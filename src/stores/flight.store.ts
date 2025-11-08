@@ -127,11 +127,19 @@ export const useFlightStore = defineStore('flight', {
       this.selectionError = null;
       // Placeholder for navigation
       console.log('Validation successful! Proceeding to booking with:', this.selectedDeparture.id, this.selectedReturn.id);
-      router.push(`/bookings/create?departureFlightId=${this.selectedDeparture.id}&returnFlightId=${this.selectedReturn.id}`);
+      router.push({
+        name: 'booking-create',
+        query: {
+          departureFlightId: this.selectedDeparture.id,
+          returnFlightId: this.selectedReturn.id,
+        },
+      });
     },
     bookOneWay(flight: FlightInterface) {
-      console.log('Booking one-way flight:', flight.id);
-      router.push(`/bookings/create?departureFlightId=${flight.id}`);
+      router.push({
+        name: 'booking-create',
+        query: { departureFlightId: flight.id },
+      });
     }
   },
 });

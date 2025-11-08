@@ -52,6 +52,21 @@ export interface BookingInterface {
   isDeleted: boolean;
 }
 
+export interface BookingPassengerSelectionInput {
+  passengerId: string;
+  seatCode: string;
+}
+
+export interface BookingCreateRequest {
+  flightId: string;
+  returnFlightId?: string | null;
+  classFlightId: number;
+  contactEmail: string;
+  contactPhone: string;
+  passengerCount: number;
+  passengers: BookingPassengerSelectionInput[];
+}
+
 export interface BookingDetailRouteInfo {
   origin: string;
   destination: string;

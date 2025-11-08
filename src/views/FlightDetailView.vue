@@ -109,6 +109,11 @@ const handleCancel = async () => {
   }
 };
 
+const handleBookFlight = () => {
+  if (!flight.value) return;
+  router.push({ name: 'booking-create', query: { departureFlightId: flight.value.id } });
+};
+
 </script>
 
 <template>
@@ -200,7 +205,7 @@ const handleCancel = async () => {
         <div class="spacer"></div>
         <router-link :to="{ name: 'update-flight', params: { id: flight.id } }" class="btn btn-warning" :class="{ 'disabled-link': !isUpdatable }" :is="isUpdatable ? 'router-link' : 'span'">Update</router-link>
         <button class="btn btn-danger" @click="handleCancel" :disabled="!isCancellable">Cancel</button>
-        <button class="btn btn-primary" :disabled="!isBookable">Book Flight</button>
+        <button class="btn btn-primary" :disabled="!isBookable" @click="handleBookFlight">Book Flight</button>
       </footer>
     </div>
   </div>
