@@ -292,6 +292,9 @@ const handleCancelBooking = async (bookingId: string) => {
   flex: 1 1 320px;
   min-width: 240px;
 }
+.filter-select {
+  padding-right: 2.75rem;
+}
 .stats-container {
   display: flex;
   gap: 1rem;

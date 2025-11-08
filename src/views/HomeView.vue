@@ -183,7 +183,7 @@ onMounted(fetchDashboardData);
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z"></path></svg>
             <span>Manage Airplanes</span>
           </router-link>
-          <router-link to="/airplanes/register" class="action-item">
+          <router-link to="/airplanes" class="action-item">
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
             <span>Register Airplane</span>
           </router-link>
@@ -207,10 +207,9 @@ onMounted(fetchDashboardData);
 
 <style scoped>
 .dashboard-page {
-  min-height: 100vh;
-  background: linear-gradient(135deg, #1a202c, #2d3748);
+  min-height: calc(100vh - 120px);
   padding: 2rem;
-  color: #e2e8f0;
+  color: inherit;
 }
 
 .dashboard-content {

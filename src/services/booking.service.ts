@@ -4,6 +4,7 @@ import type {
   BookingDetailInterface,
   BookingCreateRequest,
   CommonResponseInterface,
+  BookingUpdateRequest,
 } from '../interfaces';
 
 export interface BookingFilters {
@@ -35,6 +36,14 @@ class BookingService {
   async createBooking(payload: BookingCreateRequest): Promise<BookingInterface[]> {
     const response = await http.post<CommonResponseInterface<BookingInterface[]>>(
       '/bookings/create',
+      payload
+    );
+    return response.data.data;
+  }
+
+  async updateBooking(id: string, payload: BookingUpdateRequest): Promise<BookingDetailInterface> {
+    const response = await http.put<CommonResponseInterface<BookingDetailInterface>>(
+      `/bookings/${id}/update`,
       payload
     );
     return response.data.data;

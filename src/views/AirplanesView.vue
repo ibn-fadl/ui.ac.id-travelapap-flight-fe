@@ -82,7 +82,9 @@ const openRegisterModal = () => {
   formError.value = null;
   isRegisterModalOpen.value = true;
 };
-const closeRegisterModal = () => isRegisterModalOpen.value = false;
+const closeRegisterModal = () => {
+  isRegisterModalOpen.value = false;
+};
 const handleFormSubmit = async (formData: CreateAirplaneRequestInterface) => {
   formError.value = null;
   try {
@@ -491,6 +493,7 @@ const handleUpdate = async () => {
 .search-group .search-input { flex: 1 1 auto; min-width: 0; }
 .reset-button { white-space: nowrap; }
 .search-input, .filter-select { background-color: #2d3748; color: #e2e8f0; border: 1px solid #4a5568; border-radius: 8px; padding: 0.75rem 1rem; font-size: 1rem; }
+.filter-select { padding-right: 2.75rem; }
 .search-input { flex-grow: 1; min-width: 250px; }
 .search-input::placeholder { color: #a0aec0; }
 
@@ -639,6 +642,9 @@ tbody tr:hover td.sticky-col {
   border-radius: 8px;
   padding: 0.75rem 1rem;
   font-size: 1rem;
+}
+.detail-form .form-group select {
+  padding-right: 2.75rem;
 }
 .detail-form .form-group input:disabled,
 .detail-form .form-group select:disabled {

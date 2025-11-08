@@ -1,16 +1,43 @@
 <script setup lang="ts">
-import { computed, watch, onBeforeUnmount } from 'vue'
+import { computed, watch, onBeforeUnmount, ref, reactive } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { useBookingStore } from '@/stores/booking.store'
 import { useConfirmDialog } from '@/composables/useConfirmDialog'
 import { formatCurrency, formatDateTime, formatDateOnly } from '@/utils/formatters'
+import bookingService from '@/services/booking.service'
+import flightService from '@/services/flight.service'
+import type {
+  BookingDetailInterface,
+  FlightDetailInterface,
+  BookingInterface,
+  BookingUpdateRequest,
+} from '@/interfaces'
+import { useToast } from '@/composables/useToast'
+import Modal from '@/components/common/CommonModal.vue'
 
 const route = useRoute()
 const router = useRouter()
 const bookingStore = useBookingStore()
 const { currentBooking: booking, loading, error } = storeToRefs(bookingStore)
 const { show } = useConfirmDialog()
+const { showToast } = useToast()
+const relatedBooking = ref<BookingDetailInterface | null>(null)
+const relatedLoading = ref(false)
+const relatedError = ref<string | null>(null)
+const attemptedReturnLookup = ref(false)
+const flightDetails = reactive<Record<string, FlightDetailInterface | null>>({})
+const isUpdateModalOpen = ref(false)
+const updateLoading = ref(false)
+const updateError = ref<string | null>(null)
+const updateForm = reactive({
+  contactEmail: '',
+  contactPhone: '',
+  passengers: [] as Array<{ passengerId: string; fullName: string; seatCode: string }>,
+})
+const seatOptions = ref<{ label: string; value: string }[]>([])
+const seatLoading = ref(false)
+const seatError = ref<string | null>(null)
 
 const bookingId = computed(() => route.params.id as string | undefined)
 
@@ -19,7 +46,31 @@ const loadBooking = async (id?: string) => {
     return
   }
 
+  relatedBooking.value = null
+  relatedError.value = null
+  attemptedReturnLookup.value = false
+
   await bookingStore.fetchBookingById(id)
+
+  if (booking.value) {
+    await loadFlightDetail(booking.value.flight.flightId)
+    await fetchRelatedBooking(booking.value)
+    populateUpdateForm(booking.value)
+  }
+}
+
+const populateUpdateForm = (details: BookingDetailInterface) => {
+  updateForm.contactEmail = details.contactInfo.email
+  updateForm.contactPhone = details.contactInfo.phone
+  updateForm.passengers = details.passengerList.map((passenger) => ({
+    passengerId: passenger.passengerId,
+    fullName: passenger.fullName,
+    seatCode: passenger.seatCode || '',
+  }))
+  updateError.value = null
+  seatOptions.value = []
+  seatLoading.value = false
+  seatError.value = null
 }
 
 watch(
@@ -29,6 +80,153 @@ watch(
   },
   { immediate: true }
 )
+
+watch(
+  () => booking.value,
+  (value) => {
+    if (value && isUpdateModalOpen.value) {
+      populateUpdateForm(value)
+    }
+  }
+)
+
+const loadFlightDetail = async (flightId?: string) => {
+  if (!flightId) {
+    return
+  }
+
+  if (Object.prototype.hasOwnProperty.call(flightDetails, flightId)) {
+    return
+  }
+
+  try {
+    const detail = await flightService.getFlightById(flightId)
+    flightDetails[flightId] = detail
+  } catch (err) {
+    flightDetails[flightId] = null
+  }
+}
+
+const parseRouteString = (route: string) => {
+  const [origin = '', destination = ''] = route.split('->').map((segment) => segment.trim())
+  return { origin, destination }
+}
+
+const findReturnBookingCandidate = (
+  primary: BookingDetailInterface,
+  bookings: BookingInterface[]
+) => {
+  const reversedOrigin = primary.flight.route.destination
+  const reversedDestination = primary.flight.route.origin
+  const contactEmail = primary.contactInfo.email
+  const contactPhone = primary.contactInfo.phone
+  const createdAtMs = new Date(primary.createdAt).getTime()
+
+  const candidates = bookings
+    .filter((item) => item.id !== primary.bookingId)
+    .filter(
+      (item) =>
+        item.contactEmail === contactEmail &&
+        item.contactPhone === contactPhone &&
+        item.passengerCount === primary.passengerCount
+    )
+    .map((item) => ({
+      booking: item,
+      route: parseRouteString(item.route),
+      createdAtMs: new Date(item.createdAt).getTime(),
+    }))
+    .filter(
+      (entry) =>
+        entry.route.origin === reversedOrigin && entry.route.destination === reversedDestination
+    )
+    .sort(
+      (a, b) =>
+        Math.abs(a.createdAtMs - createdAtMs) - Math.abs(b.createdAtMs - createdAtMs)
+    )
+
+  return candidates[0]?.booking ?? null
+}
+
+const fetchRelatedBooking = async (primary: BookingDetailInterface) => {
+  relatedLoading.value = true
+  attemptedReturnLookup.value = true
+  relatedError.value = null
+  relatedBooking.value = null
+
+  try {
+    const allBookings = await bookingService.getAllBookings()
+    const candidate = findReturnBookingCandidate(primary, allBookings)
+
+    if (!candidate) {
+      return
+    }
+
+    const detail = await bookingService.getBookingById(candidate.id)
+    relatedBooking.value = detail
+    await loadFlightDetail(detail.flight.flightId)
+  } catch (err: any) {
+    relatedError.value =
+      err?.response?.data?.message || err?.message || 'Unable to load return flight booking.'
+  } finally {
+    relatedLoading.value = false
+  }
+}
+
+const loadSeatOptions = async () => {
+  if (!booking.value || !booking.value.classFlight) {
+    return
+  }
+  seatLoading.value = true
+  seatError.value = null
+  try {
+    const seats = await flightService.getSeatsByClassId(booking.value.classFlight.classFlightId)
+    seatOptions.value = seats
+      .filter((seat) => !seat.isBooked || booking.value?.passengerList.some((p) => p.seatCode === seat.seatCode))
+      .map((seat) => ({ label: seat.seatCode, value: seat.seatCode }))
+  } catch (err: any) {
+    seatError.value = err?.response?.data?.message || err?.message || 'Unable to load seat availability.'
+  } finally {
+    seatLoading.value = false
+  }
+}
+
+const buildAirlineDisplay = (flightId?: string, fallbackName?: string) => {
+  if (!flightId) {
+    return fallbackName || 'N/A'
+  }
+
+  const detail = flightDetails[flightId]
+  if (detail === undefined) {
+    return 'Loading...'
+  }
+  if (detail === null) {
+    return fallbackName || 'N/A'
+  }
+
+  const code = detail.airline?.id || detail.airlineId
+  const name = detail.airline?.name || detail.airlineName || fallbackName
+  const parts = [code, name].filter(Boolean)
+  return parts.length ? parts.join(' - ') : fallbackName || 'N/A'
+}
+
+const buildAircraftDisplay = (flightId?: string, fallbackModel?: string) => {
+  if (!flightId) {
+    return fallbackModel || 'N/A'
+  }
+
+  const detail = flightDetails[flightId]
+  if (detail === undefined) {
+    return 'Loading...'
+  }
+  if (detail === null) {
+    return fallbackModel || 'N/A'
+  }
+
+  const id = detail.airplane?.id
+  const model = detail.airplane?.model || detail.airplaneModel || fallbackModel
+  const parts = [id, model].filter(Boolean)
+  return parts.length ? parts.join(' - ') : fallbackModel || 'N/A'
+}
 
 onBeforeUnmount(() => {
   bookingStore.resetCurrentBooking()
@@ -56,10 +254,15 @@ const bookingStatusInfo = computed(() => {
   return BOOKING_STATUS_MAP[status] ?? BOOKING_STATUS_MAP.default
 })
 
-const flightStatusInfo = computed(() => {
-  const status = booking.value?.flight.status as keyof typeof FLIGHT_STATUS_MAP
-  return FLIGHT_STATUS_MAP[status] ?? FLIGHT_STATUS_MAP.default
-})
+const getFlightStatusInfo = (status?: number) => {
+  const key = status as keyof typeof FLIGHT_STATUS_MAP
+  return FLIGHT_STATUS_MAP[key] ?? FLIGHT_STATUS_MAP.default
+}
+
+const primaryFlightStatusInfo = computed(() => getFlightStatusInfo(booking.value?.flight.status))
+const relatedFlightStatusInfo = computed(() =>
+  getFlightStatusInfo(relatedBooking.value?.flight.status)
+)
 
 const canCancel = computed(() => booking.value?.status === 1)
 const isMutating = computed(() => Boolean(booking.value) && loading.value)
@@ -76,15 +279,109 @@ const handleBackToList = () => {
   router.push({ name: 'bookings' })
 }
 
-const handleUpdateBooking = () => {
+const openUpdateModal = () => {
+  if (!booking.value || updateLoading.value) {
+    return
+  }
+  populateUpdateForm(booking.value)
+  isUpdateModalOpen.value = true
+  loadSeatOptions()
+}
+
+const closeUpdateModal = () => {
+  if (updateLoading.value) {
+    return
+  }
+  isUpdateModalOpen.value = false
+}
+
+const buildPassengerUpdates = (): NonNullable<BookingUpdateRequest['passengers']> => {
+  if (!booking.value) {
+    return []
+  }
+
+  const currentSeats = new Map(
+    booking.value.passengerList.map((passenger) => [passenger.passengerId, passenger.seatCode || ''])
+  )
+
+  return updateForm.passengers
+    .map((passenger) => ({
+      passengerId: passenger.passengerId,
+      seatCode: passenger.seatCode.trim(),
+    }))
+    .filter((entry) => {
+      const previousSeat = currentSeats.get(entry.passengerId) || ''
+      return entry.seatCode && entry.seatCode !== previousSeat
+    })
+    .map((entry) => ({
+      passengerId: entry.passengerId,
+      action: 'UPDATE' as const,
+      seatCode: entry.seatCode,
+    }))
+}
+
+const isSeatTakenByOtherPassenger = (passengerId: string, seatCode: string) => {
+  return updateForm.passengers.some(
+    (passenger) => passenger.passengerId !== passengerId && passenger.seatCode === seatCode
+  )
+}
+
+const submitBookingUpdate = async () => {
   if (!booking.value) {
     return
   }
 
-  router.push({
-    name: 'bookings',
-    query: { editBookingId: booking.value.bookingId }
-  })
+  if (!updateForm.contactEmail.trim()) {
+    updateError.value = 'Contact email is required.'
+    return
+  }
+
+  if (!updateForm.contactPhone.trim()) {
+    updateError.value = 'Contact phone is required.'
+    return
+  }
+
+  const payload: BookingUpdateRequest = {}
+  let hasChanges = false
+
+  const normalizedEmail = updateForm.contactEmail.trim()
+  if (normalizedEmail !== booking.value.contactInfo.email) {
+    payload.contactEmail = normalizedEmail
+    hasChanges = true
+  }
+
+  const normalizedPhone = updateForm.contactPhone.trim()
+  if (normalizedPhone !== booking.value.contactInfo.phone) {
+    payload.contactPhone = normalizedPhone
+    hasChanges = true
+  }
+
+  const passengerUpdates = buildPassengerUpdates()
+  if (passengerUpdates.length > 0) {
+    payload.passengers = passengerUpdates
+    hasChanges = true
+  }
+
+  if (!hasChanges) {
+    updateError.value = 'No changes to save.'
+    return
+  }
+
+  updateLoading.value = true
+  updateError.value = null
+
+  try {
+    await bookingService.updateBooking(booking.value.bookingId, payload)
+    showToast('Booking updated successfully.', 'success')
+    isUpdateModalOpen.value = false
+    await loadBooking(bookingId.value)
+  } catch (err: any) {
+    const message = err?.response?.data?.message || err?.message || 'Failed to update booking.'
+    updateError.value = message
+    showToast(message, 'error')
+  } finally {
+    updateLoading.value = false
+  }
 }
 
 const handleCancelBooking = async () => {
@@ -156,17 +453,21 @@ const handleCancelBooking = async () => {
         <section class="card-section flight-card">
           <div class="card-header-row">
             <span class="chip">Flight {{ booking.flight.flightId }}</span>
-            <span class="status-badge" :class="flightStatusInfo.className">{{ flightStatusInfo.label }}</span>
+            <span class="status-badge" :class="primaryFlightStatusInfo.className">{{ primaryFlightStatusInfo.label }}</span>
           </div>
           <p class="route-text">{{ booking.flight.route.origin }} -> {{ booking.flight.route.destination }}</p>
           <div class="flight-meta">
             <div>
               <span class="meta-label">Airline</span>
-              <span class="meta-value">{{ booking.flight.airlineName || 'N/A' }}</span>
+              <span class="meta-value">
+                {{ buildAirlineDisplay(booking.flight.flightId, booking.flight.airlineName) }}
+              </span>
             </div>
             <div>
               <span class="meta-label">Aircraft</span>
-              <span class="meta-value">{{ booking.flight.aircraftModel || 'N/A' }}</span>
+              <span class="meta-value">
+                {{ buildAircraftDisplay(booking.flight.flightId, booking.flight.aircraftModel) }}
+              </span>
             </div>
           </div>
           <div class="info-grid">
@@ -187,6 +488,70 @@ const handleCancelBooking = async () => {
               <span class="meta-value">{{ booking.flight.gate || 'N/A' }}</span>
             </div>
           </div>
+        </section>
+
+        <section v-if="relatedLoading" class="card-section flight-card">
+          <div class="card-header-row">
+            <span class="chip">Return Flight</span>
+          </div>
+          <p class="route-text">Loading matching return booking...</p>
+        </section>
+
+        <section v-else-if="relatedBooking" class="card-section flight-card">
+          <div class="card-header-row">
+            <span class="chip">Return Flight {{ relatedBooking.flight.flightId }}</span>
+            <span class="status-badge" :class="relatedFlightStatusInfo.className">
+              {{ relatedFlightStatusInfo.label }}
+            </span>
+          </div>
+          <p class="route-text">
+            {{ relatedBooking.flight.route.origin }} -> {{ relatedBooking.flight.route.destination }}
+          </p>
+          <div class="flight-meta">
+            <div>
+              <span class="meta-label">Airline</span>
+              <span class="meta-value">
+                {{ buildAirlineDisplay(relatedBooking.flight.flightId, relatedBooking.flight.airlineName) }}
+              </span>
+            </div>
+            <div>
+              <span class="meta-label">Aircraft</span>
+              <span class="meta-value">
+                {{ buildAircraftDisplay(relatedBooking.flight.flightId, relatedBooking.flight.aircraftModel) }}
+              </span>
+            </div>
+          </div>
+          <div class="info-grid">
+            <div>
+              <span class="meta-label">Departure</span>
+              <span class="meta-value">{{ formatDateTime(relatedBooking.flight.departureTime) }}</span>
+            </div>
+            <div>
+              <span class="meta-label">Arrival</span>
+              <span class="meta-value">{{ formatDateTime(relatedBooking.flight.arrivalTime) }}</span>
+            </div>
+            <div>
+              <span class="meta-label">Terminal</span>
+              <span class="meta-value">{{ relatedBooking.flight.terminal || 'N/A' }}</span>
+            </div>
+            <div>
+              <span class="meta-label">Gate</span>
+              <span class="meta-value">{{ relatedBooking.flight.gate || 'N/A' }}</span>
+            </div>
+          </div>
+        </section>
+
+        <section
+          v-else-if="attemptedReturnLookup && !relatedError"
+          class="card-section info-card"
+        >
+          <h2>Return Flight</h2>
+          <p class="muted-hint">No matching return flight booking was found for this record.</p>
+        </section>
+
+        <section v-else-if="relatedError" class="card-section info-card error">
+          <h2>Return Flight</h2>
+          <p>{{ relatedError }}</p>
         </section>
 
         <section class="grid-sections">
@@ -254,7 +619,7 @@ const handleCancelBooking = async () => {
         <footer class="detail-actions">
           <button class="btn btn-secondary" @click="handleBackToList">Back to List</button>
           <div class="spacer"></div>
-          <button class="btn btn-primary" @click="handleUpdateBooking" :disabled="isMutating">Update Booking</button>
+          <button class="btn btn-primary" @click="openUpdateModal" :disabled="isMutating">Update Booking</button>
           <button
             class="btn btn-danger"
             @click="handleCancelBooking"
@@ -271,6 +636,72 @@ const handleCancelBooking = async () => {
         <button class="btn btn-secondary" @click="handleBackToList">Back to List</button>
       </section>
     </div>
+    <Modal :show="isUpdateModalOpen" @close="closeUpdateModal">
+      <template #header>
+        <h2>Update Booking</h2>
+      </template>
+      <template #body>
+        <div class="update-form">
+          <div class="form-field">
+            <span>Contact Email</span>
+            <input
+              type="email"
+              v-model.trim="updateForm.contactEmail"
+              placeholder="passenger@example.com"
+            />
+          </div>
+          <div class="form-field">
+            <span>Contact Phone</span>
+            <input
+              type="tel"
+              v-model.trim="updateForm.contactPhone"
+              placeholder="+62-812-1234-5678"
+            />
+          </div>
+          <div class="passenger-update-list">
+            <p class="section-label">Passenger Seats</p>
+            <p v-if="seatLoading" class="muted-hint">Loading seats...</p>
+            <p v-else-if="seatError" class="form-error">{{ seatError }}</p>
+            <article
+              v-for="passenger in updateForm.passengers"
+              :key="passenger.passengerId"
+              class="passenger-update-card"
+            >
+              <header>
+                <div>
+                  <p class="passenger-name">{{ passenger.fullName }}</p>
+                  <p class="muted-hint">ID: {{ passenger.passengerId }}</p>
+                </div>
+              </header>
+              <label class="form-field">
+                <span>Seat Code</span>
+                <select v-model="passenger.seatCode" :disabled="seatLoading || !!seatError">
+                  <option disabled value="">Select a seat</option>
+                  <option
+                    v-for="seat in seatOptions"
+                    :key="seat.value"
+                    :value="seat.value"
+                    :disabled="isSeatTakenByOtherPassenger(passenger.passengerId, seat.value)"
+                  >
+                    {{ seat.label }}
+                  </option>
+                </select>
+              </label>
+            </article>
+          </div>
+          <p v-if="updateError" class="form-error">{{ updateError }}</p>
+        </div>
+      </template>
+      <template #footer>
+        <button class="btn btn-secondary" @click="closeUpdateModal" :disabled="updateLoading">
+          Cancel
+        </button>
+        <button class="btn btn-primary" @click="submitBookingUpdate" :disabled="updateLoading">
+          <span v-if="updateLoading" class="inline-loader"></span>
+          <span>{{ updateLoading ? 'Saving...' : 'Save Changes' }}</span>
+        </button>
+      </template>
+    </Modal>
   </div>
 </template>
 
@@ -477,6 +908,18 @@ const handleCancelBooking = async () => {
   margin: 0;
 }
 
+.form-error {
+  color: #feb2b2;
+  font-size: 0.9rem;
+  margin: 0;
+}
+
+.muted-hint {
+  color: #a0aec0;
+  font-size: 0.85rem;
+  margin: 0;
+}
+
 .detail-actions {
   display: flex;
   align-items: center;
@@ -617,6 +1060,54 @@ const handleCancelBooking = async () => {
   display: inline-block;
   margin-right: 0.5rem;
   animation: spin 1s linear infinite;
+}
+
+.update-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.update-form .form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.update-form input,
+.update-form select {
+  background: #121826;
+  border: 1px solid #4a5568;
+  border-radius: 8px;
+  padding: 0.85rem 1rem;
+  color: #f7fafc;
+  font-size: 1rem;
+}
+.update-form select {
+  padding-right: 2.85rem;
+}
+
+.update-form input:focus,
+.update-form select:focus {
+  border-color: #805ad5;
+  outline: none;
+}
+
+.passenger-update-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.passenger-update-card {
+  background: #1a2234;
+  border: 1px solid #374151;
+  border-radius: 10px;
+  padding: 1rem;
+}
+
+.passenger-update-card header {
+  margin-bottom: 0.5rem;
 }
 
 @keyframes spin {

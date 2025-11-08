@@ -363,7 +363,7 @@ const yearOptions = computed(() => {
   background: transparent;
   border: none;
   color: #f7fafc;
-  padding: 0.65rem 0.9rem;
+  padding: 0.65rem 2.4rem 0.65rem 0.9rem;
   font-size: 1rem;
 }
 

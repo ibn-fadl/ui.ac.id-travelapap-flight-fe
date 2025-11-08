@@ -509,6 +509,22 @@ const loadPassengers = async () => {
 onMounted(() => {
   loadPassengers();
 });
+
+const formatAirlineDisplay = (flight: FlightDetailInterface | null) => {
+  if (!flight) return 'Loading...';
+  const code = flight.airline?.id || flight.airlineId;
+  const name = flight.airline?.name || flight.airlineName;
+  const parts = [code, name].filter(Boolean);
+  return parts.length ? parts.join(' - ') : 'N/A';
+};
+
+const formatAircraftDisplay = (flight: FlightDetailInterface | null) => {
+  if (!flight) return 'Loading...';
+  const id = flight.airplane?.id;
+  const model = flight.airplane?.model || flight.airplaneModel;
+  const parts = [id, model].filter(Boolean);
+  return parts.length ? parts.join(' - ') : 'N/A';
+};
 </script>
 
 <template>
@@ -578,11 +594,11 @@ onMounted(() => {
               </div>
               <div>
                 <span class="label">Airline</span>
-                <p>{{ flights[trip]?.airlineName }}</p>
+                <p>{{ formatAirlineDisplay(flights[trip] ?? null) }}</p>
               </div>
               <div>
                 <span class="label">Aircraft</span>
-                <p>{{ flights[trip]?.airplaneModel }}</p>
+                <p>{{ formatAircraftDisplay(flights[trip] ?? null) }}</p>
               </div>
             </div>
           </article>
@@ -785,6 +801,8 @@ onMounted(() => {
                   Depart: {{ formatDateTime(flights[trip]?.departureTime) }} · Arrive:
                   {{ formatDateTime(flights[trip]?.arrivalTime) }}
                 </p>
+                <p>Airline: {{ formatAirlineDisplay(flights[trip] ?? null) }}</p>
+                <p>Aircraft: {{ formatAircraftDisplay(flights[trip] ?? null) }}</p>
                 <p>Class: {{ selectedClasses[trip]?.classType || '—' }}</p>
               </article>
               <article class="review-card">
@@ -1016,6 +1034,9 @@ onMounted(() => {
   padding: 0.85rem 1rem;
   color: #f7fafc;
   font-size: 1rem;
+}
+.form-field select {
+  padding-right: 2.85rem;
 }
 
 .form-field input:focus,

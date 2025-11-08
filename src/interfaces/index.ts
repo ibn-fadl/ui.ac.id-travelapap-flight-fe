@@ -67,6 +67,23 @@ export interface BookingCreateRequest {
   passengers: BookingPassengerSelectionInput[];
 }
 
+export type BookingPassengerAction = 'ADD' | 'UPDATE' | 'REMOVE';
+
+export interface BookingUpdatePassengerItem {
+  passengerId: string;
+  action: BookingPassengerAction;
+  fullName?: string;
+  birthDate?: string;
+  identityNumber?: string;
+  seatCode?: string;
+}
+
+export interface BookingUpdateRequest {
+  contactEmail?: string;
+  contactPhone?: string;
+  passengers?: BookingUpdatePassengerItem[];
+}
+
 export interface BookingDetailRouteInfo {
   origin: string;
   destination: string;

@@ -35,7 +35,6 @@ const { isVisible, options, onConfirm, onCancel } = useConfirmDialog();
 <style scoped>
 .app-wrapper {
   min-height: 100vh;
-  background: linear-gradient(135deg, #1a202c, #2d3748);
   color: #e2e8f0;
 }
 

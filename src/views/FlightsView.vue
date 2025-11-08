@@ -196,6 +196,9 @@ const handleDebouncedInput = (filter: Partial<FlightFilters>) => {
   padding: 0.75rem 1rem;
   font-size: 1rem;
 }
+.filter-select {
+  padding-right: 2.75rem;
+}
 
 .filter-input.search-input {
   flex-grow: 1;
