@@ -43,11 +43,6 @@ const router = createRouter({
       component: BookingsView,
     },
     {
-      path: '/statistics/bookings',
-      name: 'booking-statistics',
-      component: () => import('../views/BookingStatisticsView.vue'),
-    },
-    {
       path: '/bookings/create',
       name: 'booking-create',
       component: () => import('../views/CreateBookingView.vue'),
